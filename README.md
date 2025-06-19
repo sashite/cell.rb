@@ -5,13 +5,13 @@
 ![Ruby](https://github.com/sashite/cell.rb/actions/workflows/main.yml/badge.svg?branch=main)
 [![License](https://img.shields.io/github/license/sashite/cell.rb?label=License&logo=github)](https://github.com/sashite/cell.rb/raw/main/LICENSE.md)
 
-> **CELL** (Coordinate Expression Location Label) support for the Ruby language.
+> **CELL** (Cell Encoding Location Label) support for the Ruby language.
 
 ## What is CELL?
 
-CELL (Coordinate Expression Location Label) defines a consistent and rule-agnostic format for representing locations in abstract strategy board games. CELL provides a standardized way to identify positions on game boards and pieces held in hand/reserve, establishing a common foundation for location reference across the Sashité notation ecosystem.
+CELL (Cell Encoding Location Label) is a standardized format for representing coordinates on multi-dimensional game boards using a cyclical ASCII character system. CELL supports unlimited dimensional coordinate systems through the systematic repetition of three distinct character sets.
 
-This gem implements the [CELL Specification v1.0.0](https://sashite.dev/documents/cell/1.0.0/), providing a Ruby interface for working with game locations through a clean and simple API that serves as a foundational building block for other Sashité specifications.
+This gem implements the [CELL Specification v1.0.0](https://sashite.dev/documents/cell/1.0.0/), providing a Ruby interface for working with multi-dimensional game coordinates through a clean, functional API.
 
 ## Installation
 
@@ -28,319 +28,242 @@ gem install sashite-cell
 
 ## CELL Format
 
-A CELL location is represented by a single string following one of two patterns:
+CELL uses a cyclical three-character-set system that repeats indefinitely based on dimensional position:
 
-### Board Coordinates
+**Dimension (n % 3 = 1)**: Latin Lowercase Letters
+- `a`, `b`, `c`, ..., `z`, `aa`, `ab`, ..., `zz`, `aaa`, ...
 
-Any non-empty string containing only alphanumeric characters (`a-z`, `A-Z`, `0-9`):
+**Dimension (n % 3 = 2)**: Arabic Numerals
+- `1`, `2`, `3`, ..., `25`, `26`, ...
 
-```
-e4        # Chess notation
-5c        # Shōgi notation
-A3a       # 3D coordinate
-center    # Custom coordinate
-```
-
-### Hand/Reserve Location
-
-The reserved character `*` represents pieces held off-board:
-```
-*         # Hand/reserve location
-```
+**Dimension (n % 3 = 0)**: Latin Uppercase Letters
+- `A`, `B`, `C`, ..., `Z`, `AA`, `AB`, ..., `ZZ`, `AAA`, ...
 
 ## Basic Usage
 
-### Creating Location Objects
+### Validation
 
-The primary interface is the `Sashite::Cell::Location` class, which represents a game location in CELL format:
+The primary functionality is validating CELL coordinates:
 
 ```ruby
 require "sashite/cell"
 
-# Parse CELL strings into location objects
-board_pos = Sashite::Cell::Location.parse("e4")
-# => #<Sashite::Cell::Location:0x... @coordinate="e4">
+# Check if a string represents a valid CELL coordinate
+Sashite::Cell.valid?("a1")     # => true (2D coordinate)
+Sashite::Cell.valid?("a1A")    # => true (3D coordinate)
+Sashite::Cell.valid?("e4")     # => true (2D coordinate)
+Sashite::Cell.valid?("h8Hh8")  # => true (5D coordinate)
+Sashite::Cell.valid?("*")      # => false (not a CELL coordinate)
+Sashite::Cell.valid?("a0")     # => false (invalid numeral)
+Sashite::Cell.valid?("")       # => false (empty string)
 
-hand_pos = Sashite::Cell::Location.parse("*")
-# => #<Sashite::Cell::Location:0x... @coordinate="*">
-
-# Create directly with constructor
-location = Sashite::Cell::Location.new("e4")
-hand = Sashite::Cell::Location.new("*")
-
-# Convenience method
-location = Sashite::Cell.location("e4")
+# Alias for convenience
+Cell = Sashite::Cell
+Cell.valid?("a1") # => true
 ```
 
-### Converting to CELL String
-
-Convert a location object back to its CELL string representation:
+### Dimensional Analysis
 
 ```ruby
-location = Sashite::Cell::Location.parse("e4")
-location.to_s
+# Get the number of dimensions in a coordinate
+Sashite::Cell.dimensions("a1")     # => 2
+Sashite::Cell.dimensions("a1A")    # => 3
+Sashite::Cell.dimensions("h8Hh8")  # => 5
+Sashite::Cell.dimensions("foobar") # => 1
+
+# Parse coordinate into dimensional components
+Sashite::Cell.parse("a1A")
+# => ["a", "1", "A"]
+
+Sashite::Cell.parse("h8Hh8")
+# => ["h", "8", "H", "h", "8"]
+
+Sashite::Cell.parse("foobar")
+# => ["foobar"]
+```
+
+### Coordinate Conversion
+
+```ruby
+# Convert coordinates to arrays of integers (0-indexed)
+Sashite::Cell.to_indices("a1")
+# => [0, 0]
+
+Sashite::Cell.to_indices("e4")
+# => [4, 3]
+
+Sashite::Cell.to_indices("a1A")
+# => [0, 0, 0]
+
+# Convert arrays of integers back to CELL coordinates
+Sashite::Cell.from_indices(0, 0)
+# => "a1"
+
+Sashite::Cell.from_indices(4, 3)
 # => "e4"
 
-hand = Sashite::Cell::Location.parse("*")
-hand.to_s
-# => "*"
+Sashite::Cell.from_indices(0, 0, 0)
+# => "a1A"
 ```
 
-### Checking Location Types
+## Usage Examples
 
-Distinguish between board coordinates and hand/reserve locations:
+### Chess Board (8x8)
 
 ```ruby
-board_loc = Sashite::Cell::Location.parse("e4")
-hand_loc = Sashite::Cell::Location.parse("*")
+# Standard chess notation mapping
+chess_squares = %w[a1 b1 c1 d1 e1 f1 g1 h1
+                   a2 b2 c2 d2 e2 f2 g2 h2
+                   a3 b3 c3 d3 e3 f3 g3 h3
+                   a4 b4 c4 d4 e4 f4 g4 h4
+                   a5 b5 c5 d5 e5 f5 g5 h5
+                   a6 b6 c6 d6 e6 f6 g6 h6
+                   a7 b7 c7 d7 e7 f7 g7 h7
+                   a8 b8 c8 d8 e8 f8 g8 h8]
 
-board_loc.board?     # => true
-board_loc.hand?      # => false
-
-hand_loc.board?      # => false
-hand_loc.hand?       # => true
+chess_squares.all? { |square| Sashite::Cell.valid?(square) }
+# => true
 ```
 
-## Game-Specific Examples
-
-### Chess
+### Shogi Board (9x9)
 
 ```ruby
-# Standard chess coordinates
-locations = %w[a1 e4 h8].map { |coord| Sashite::Cell::Location.parse(coord) }
-
-# Check if valid chess square
-def valid_chess_square?(location)
-  return false unless location.board?
-
-  coord = location.to_s
-  coord.length == 2 &&
-    coord[0].between?("a", "h") &&
-    coord[1].between?("1", "8")
-end
-
-valid_chess_square?(Sashite::Cell::Location.parse("e4"))  # => true
-valid_chess_square?(Sashite::Cell::Location.parse("z9"))  # => false
+# Japanese shogi uses 9x9 board
+shogi_position = "5e" # 5th file, e rank
+Sashite::Cell.valid?(shogi_position) # => true
+Sashite::Cell.dimensions(shogi_position) # => 2
+Sashite::Cell.to_indices(shogi_position) # => [4, 4]
 ```
 
-### Shōgi
+### 3D Tic-Tac-Toe (3x3x3)
 
 ```ruby
-# Shōgi board coordinates and hand
-board_positions = %w[9a 5e 1i].map { |coord| Sashite::Cell::Location.parse(coord) }
-hand_position = Sashite::Cell::Location.parse("*")
-
-# Group by location type
-positions = board_positions + [hand_position]
-grouped = positions.group_by(&:hand?)
-# => {false => [board positions], true => [hand position]}
+# Three-dimensional game coordinates
+positions_3d = %w[a1A b2B c3C a2B b3C c1A]
+positions_3d.all? { |pos| Sashite::Cell.valid?(pos) && Sashite::Cell.dimensions(pos) == 3 }
+# => true
 ```
 
-### Go
+### Multi-dimensional Coordinates
 
 ```ruby
-# Go coordinates (traditional notation)
-go_positions = %w[A1 T19 K10].map { |coord| Sashite::Cell::Location.parse(coord) }
+# Higher dimensional coordinates
+coord_4d = "a1Aa"
+coord_5d = "b2Bb2"
 
-# Custom validation for Go board
-def valid_go_position?(location, board_size = 19)
-  return false unless location.board?
+Sashite::Cell.dimensions(coord_4d) # => 4
+Sashite::Cell.dimensions(coord_5d) # => 5
 
-  coord = location.to_s
-  return false unless [2, 3].include?(coord.length)
-
-  letter = coord[0]
-  number = coord[1..].to_i
-
-  letter.between?("A", ("A".ord + board_size - 1).chr) &&
-    number.between?(1, board_size)
-end
-```
-
-### Custom Coordinate Systems
-
-```ruby
-# 3D chess coordinates
-location_3d = Sashite::Cell::Location.parse("A3a")
-
-# Named locations
-center = Sashite::Cell::Location.parse("center")
-corner = Sashite::Cell::Location.parse("NE")
-
-# Hexagonal coordinates
-hex_coord = Sashite::Cell::Location.parse("Q3R7")
-```
-
-## Advanced Usage
-
-### Working with Collections
-
-```ruby
-# Mix of board and hand locations
-locations = [
-  Sashite::Cell::Location.parse("e4"),
-  Sashite::Cell::Location.parse("d5"),
-  Sashite::Cell::Location.parse("*"),
-  Sashite::Cell::Location.parse("a1")
-]
-
-# Separate board from hand locations
-board_locations = locations.select(&:board?)
-hand_locations = locations.select(&:hand?)
-
-# Convert collection to strings
-coordinates = locations.map(&:to_s)
-# => ["e4", "d5", "*", "a1"]
-```
-
-### Game State Representation
-
-```ruby
-# Represent piece positions
-piece_locations = {
-  "white_king"      => Sashite::Cell::Location.parse("e1"),
-  "black_king"      => Sashite::Cell::Location.parse("e8"),
-  "white_rook"      => Sashite::Cell::Location.parse("a1"),
-  "captured_pieces" => Sashite::Cell::Location.parse("*")
-}
-
-# Find pieces on specific ranks/files
-def pieces_on_file(locations, file)
-  locations.select do |piece, location|
-    location.board? && location.to_s.start_with?(file)
-  end
-end
-
-e_file_pieces = pieces_on_file(piece_locations, "e")
-```
-
-### Validation and Error Handling
-
-```ruby
-# Check validity before parsing
-Sashite::Cell.valid?("e4")      # => true
-Sashite::Cell.valid?("*")       # => true
-Sashite::Cell.valid?("")        # => false
-Sashite::Cell.valid?("e-4")     # => false
-Sashite::Cell.valid?("@")       # => false
-
-# Safe parsing
-def safe_parse(coord_string)
-  return nil unless Sashite::Cell.valid?(coord_string)
-
-  Sashite::Cell::Location.parse(coord_string)
-rescue ArgumentError
-  nil
-end
-
-# Invalid coordinates raise ArgumentError
-begin
-  Sashite::Cell::Location.parse("")
-rescue ArgumentError => e
-  puts "Invalid coordinate: #{e.message}"
-end
-```
-
-### Integration with Other Notations
-
-```ruby
-# CELL serves as foundation for move notation
-class SimpleMove
-  def initialize(from, to)
-    @from = Sashite::Cell::Location.parse(from)
-    @to = Sashite::Cell::Location.parse(to)
-  end
-
-  def from_board?
-    @from.board?
-  end
-
-  def to_board?
-    @to.board?
-  end
-
-  def drop_move?
-    @from.hand? && @to.board?
-  end
-
-  def capture_move?
-    @from.board? && @to.board?
-  end
-
-  def to_s
-    "#{@from}→#{@to}"
-  end
-end
-
-# Usage
-move = SimpleMove.new("e4", "e5")    # Normal move
-drop = SimpleMove.new("*", "e4")     # Drop from hand
+# Parse into components
+Sashite::Cell.parse(coord_4d) # => ["a", "1", "A", "a"]
+Sashite::Cell.parse(coord_5d) # => ["b", "2", "B", "b", "2"]
 ```
 
 ## API Reference
 
 ### Module Methods
 
-- `Sashite::Cell.valid?(cell_string)` - Check if a string is valid CELL notation
-- `Sashite::Cell.location(coordinate)` - Convenience method to create locations
+#### Validation
+- `Sashite::Cell.valid?(string)` - Check if string represents a valid CELL coordinate
 
-### Sashite::Cell::Location Class Methods
-
-- `Sashite::Cell::Location.parse(cell_string)` - Parse a CELL string into a location object
-- `Sashite::Cell::Location.new(coordinate)` - Create a new location instance
-
-### Instance Methods
-
-#### Type Checking
-- `#board?` - Check if location represents a board coordinate
-- `#hand?` - Check if location represents hand/reserve
+#### Analysis
+- `Sashite::Cell.dimensions(string)` - Get number of dimensions
+- `Sashite::Cell.parse(string)` - Parse coordinate into dimensional components array
 
 #### Conversion
-- `#to_s` - Convert to CELL string representation
-- `#inspect` - Detailed string representation for debugging
+- `Sashite::Cell.to_indices(string)` - Convert CELL coordinate to 0-indexed integer array
+- `Sashite::Cell.from_indices(*indices)` - Convert splat indices to CELL coordinate
 
-#### Comparison
-- `#==` - Compare locations for equality
-- `#eql?` - Strict equality comparison
-- `#hash` - Hash value for use in collections
+#### Utilities
+- `Sashite::Cell.regex` - Get the validation regular expression
+
+### Constants
+
+- `Sashite::Cell::REGEX` - Regular expression for CELL validation: `/\A(?:[a-z]+|[1-9]\d*|[A-Z]+)+\z/`
 
 ## Properties of CELL
 
-* **Rule-agnostic**: CELL does not encode game states, movement rules, or game-specific conditions
-* **Universal location identification**: Supports both board positions and hand/reserve areas
-* **Canonical representation**: Equivalent locations yield identical strings
-* **Arbitrary coordinate systems**: Flexible format supports any alphanumeric coordinate system
-* **Foundational specification**: Serves as building block for other Sashité notations
+* **Multi-dimensional**: Supports unlimited dimensional coordinate systems
+* **Cyclical**: Uses systematic three-character-set repetition
+* **ASCII-based**: Pure ASCII characters for universal compatibility
+* **Unambiguous**: Each coordinate maps to exactly one location
+* **Scalable**: Extends naturally from 1D to unlimited dimensions
+* **Functional**: Provides a clean, stateless API for coordinate operations
 
-## Constraints
+## Character Set Details
 
-* Board coordinates must contain only alphanumeric characters (`a-z`, `A-Z`, `0-9`)
-* Board coordinates must be non-empty strings
-* Hand/reserve locations must be exactly the character `*`
-* No other characters or formats are permitted
+### Latin Lowercase (Dimensions 1, 4, 7, ...)
+Single letters: `a` through `z` (positions 0-25)
+Double letters: `aa` through `zz` (positions 26-701)
+Triple letters: `aaa` through `zzz` (positions 702-18277)
+And so on...
 
-## Use Cases
+### Arabic Numerals (Dimensions 2, 5, 8, ...)
+Standard decimal notation: `1`, `2`, `3`, ... (1-indexed)
+No leading zeros, unlimited range
 
-CELL is particularly useful in the following scenarios:
+### Latin Uppercase (Dimensions 3, 6, 9, ...)
+Single letters: `A` through `Z` (positions 0-25)
+Double letters: `AA` through `ZZ` (positions 26-701)
+Triple letters: `AAA` through `ZZZ` (positions 702-18277)
+And so on...
 
-1. **Move notation systems**: As coordinate foundation for MIN, PMN, and GGN specifications
-2. **Game engine development**: When implementing position tracking across different board layouts
-3. **Board representation**: When storing piece positions in databases or memory structures
-4. **Cross-game compatibility**: When building systems that work with multiple game types
-5. **Position analysis**: When comparing locations across different coordinate systems
-6. **User interface development**: When translating between display coordinates and logical positions
+## Integration with DROP
 
-## Dependencies
+CELL complements the DROP specification for complete location coverage:
 
-This gem has no external dependencies beyond Ruby standard library.
+```ruby
+# Combined location validation
+def valid_game_location?(location)
+  Sashite::Cell.valid?(location) || Sashite::Drop.reserve?(location)
+end
 
-## Specification
+valid_game_location?("a1")  # => true (board position)
+valid_game_location?("*")   # => true (reserve position)
+valid_game_location?("$")   # => false (invalid)
+```
 
-- [CELL Specification](https://sashite.dev/documents/cell/1.0.0/)
+## Examples in Different Games
+
+### Chess
+
+```ruby
+# Standard algebraic notation positions
+start_position = "e2"
+end_position = "e4"
+
+Sashite::Cell.valid?(start_position) # => true
+Sashite::Cell.valid?(end_position)   # => true
+```
+
+### Go (19x19)
+
+```ruby
+# Go board positions
+corner = "a1"       # Corner position
+edge = "j1"         # Edge position
+tengen = "j10"      # Center point (tengen) on 19x19 board
+
+[corner, edge, tengen].all? { |pos| Sashite::Cell.valid?(pos) }
+# => true
+```
+
+### Abstract Strategy Games
+
+```ruby
+# Multi-dimensional abstract games
+hypercube_4d = "a1Aa"
+tesseract_pos = "h8Hh8"
+
+# Validate high-dimensional coordinates
+Sashite::Cell.valid?(hypercube_4d) # => true
+Sashite::Cell.dimensions(tesseract_pos) # => 5
+```
 
 ## Documentation
 
-- [CELL Documentation](https://rubydoc.info/github/sashite/cell.rb/main)
+- [Official CELL Specification](https://sashite.dev/documents/cell/1.0.0/)
+- [API Documentation](https://rubydoc.info/github/sashite/cell.rb/main)
 
 ## License
 

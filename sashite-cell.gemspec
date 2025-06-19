@@ -5,8 +5,8 @@ Gem::Specification.new do |spec|
   spec.version                = ::File.read("VERSION.semver").chomp
   spec.author                 = "Cyril Kato"
   spec.email                  = "contact@cyril.email"
-  spec.summary                = "CELL (Coordinate Expression Location Label) implementation for Ruby"
-  spec.description            = "CELL defines a consistent and rule-agnostic format for representing locations in abstract strategy board games. This gem provides a Ruby interface for working with game locations, serving as a foundational building block for the Sashité notation ecosystem."
+  spec.summary                = "CELL (Cell Encoding Location Label) implementation for Ruby"
+  spec.description            = "CELL defines a standardized format for representing coordinates on multi-dimensional game boards using diverse writing systems from around the world. This gem provides a Ruby interface for working with multi-dimensional game coordinates through a clean, functional API."
   spec.homepage               = "https://github.com/sashite/cell.rb"
   spec.license                = "MIT"
   spec.files                  = ::Dir["LICENSE.md", "README.md", "lib/**/*"]
