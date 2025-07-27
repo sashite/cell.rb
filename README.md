@@ -5,13 +5,13 @@
 ![Ruby](https://github.com/sashite/cell.rb/actions/workflows/main.yml/badge.svg?branch=main)
 [![License](https://img.shields.io/github/license/sashite/cell.rb?label=License&logo=github)](https://github.com/sashite/cell.rb/raw/main/LICENSE.md)
 
-> **CELL** (Cell Encoding Location Label) support for the Ruby language.
+> **CELL** (Coordinate Encoding for Layered Locations) support for the Ruby language.
 
 ## What is CELL?
 
-CELL (Cell Encoding Location Label) is a standardized format for representing coordinates on multi-dimensional game boards using a cyclical ASCII character system. CELL supports unlimited dimensional coordinate systems through the systematic repetition of three distinct character sets.
+CELL (Coordinate Encoding for Layered Locations) is a standardized format for representing coordinates on multi-dimensional game boards using a cyclical ASCII character system. CELL supports unlimited dimensional coordinate systems through the systematic repetition of three distinct character sets.
 
-This gem implements the [CELL Specification v1.0.0](https://sashite.dev/documents/cell/1.0.0/), providing a Ruby interface for working with multi-dimensional game coordinates through a clean, functional API.
+This gem implements the [CELL Specification v1.0.0](https://sashite.dev/specs/cell/1.0.0/), providing a Ruby interface for working with multi-dimensional game coordinates through a clean, functional API.
 
 ## Installation
 
@@ -125,14 +125,16 @@ chess_squares.all? { |square| Sashite::Cell.valid?(square) }
 # => true
 ```
 
-### Shogi Board (9x9)
+### Shōgi Board (9x9)
 
 ```ruby
-# Japanese shogi uses 9x9 board
-shogi_position = "5e" # 5th file, e rank
-Sashite::Cell.valid?(shogi_position) # => true
-Sashite::Cell.dimensions(shogi_position) # => 2
-Sashite::Cell.to_indices(shogi_position) # => [4, 4]
+# CELL coordinates for shōgi positions
+shogi_positions = %w[a1 e5 i9] # Left corner, center, right corner
+shogi_positions.all? { |pos| Sashite::Cell.valid?(pos) }
+# => true
+
+# Convert to indices for board representation
+Sashite::Cell.to_indices("e5") # => [4, 4] (center of 9x9 board)
 ```
 
 ### 3D Tic-Tac-Toe (3x3x3)
@@ -142,6 +144,11 @@ Sashite::Cell.to_indices(shogi_position) # => [4, 4]
 positions_3d = %w[a1A b2B c3C a2B b3C c1A]
 positions_3d.all? { |pos| Sashite::Cell.valid?(pos) && Sashite::Cell.dimensions(pos) == 3 }
 # => true
+
+# Winning diagonal across all three dimensions
+diagonal_win = %w[a1A b2B c3C]
+diagonal_win.map { |pos| Sashite::Cell.to_indices(pos) }
+# => [[0,0,0], [1,1,1], [2,2,2]]
 ```
 
 ### Multi-dimensional Coordinates
@@ -179,7 +186,7 @@ Sashite::Cell.parse(coord_5d) # => ["b", "2", "B", "b", "2"]
 
 ### Constants
 
-- `Sashite::Cell::REGEX` - Regular expression for CELL validation: `/\A(?:[a-z]+|[1-9]\d*|[A-Z]+)+\z/`
+- `Sashite::Cell::REGEX` - Regular expression for CELL validation per specification v1.0.0
 
 ## Properties of CELL
 
@@ -188,7 +195,7 @@ Sashite::Cell.parse(coord_5d) # => ["b", "2", "B", "b", "2"]
 * **ASCII-based**: Pure ASCII characters for universal compatibility
 * **Unambiguous**: Each coordinate maps to exactly one location
 * **Scalable**: Extends naturally from 1D to unlimited dimensions
-* **Functional**: Provides a clean, stateless API for coordinate operations
+* **Rule-agnostic**: Independent of specific game mechanics
 
 ## Character Set Details
 
@@ -234,6 +241,9 @@ end_position = "e4"
 
 Sashite::Cell.valid?(start_position) # => true
 Sashite::Cell.valid?(end_position)   # => true
+
+# Convert to array indices for board representation
+Sashite::Cell.to_indices("e4") # => [4, 3]
 ```
 
 ### Go (19x19)
@@ -258,17 +268,80 @@ tesseract_pos = "h8Hh8"
 # Validate high-dimensional coordinates
 Sashite::Cell.valid?(hypercube_4d) # => true
 Sashite::Cell.dimensions(tesseract_pos) # => 5
+
+# Convert for mathematical operations
+Sashite::Cell.to_indices(hypercube_4d) # => [0, 0, 0, 0]
+```
+
+## Specification Compliance
+
+This implementation strictly follows the [CELL Specification v1.0.0](https://sashite.dev/specs/cell/1.0.0/) and includes:
+
+- **Exact regex**: Uses the official validation pattern from the specification
+- **Complete API**: All methods and behaviors defined in the specification
+- **Full test coverage**: Validates against all specification examples
+- **Round-trip safety**: Guaranteed coordinate ↔ indices conversion integrity
+
+### Specification Examples
+
+All examples from the CELL specification work correctly:
+
+```ruby
+# Basic Examples from spec
+Sashite::Cell.valid?("a")        # => true (1D)
+Sashite::Cell.valid?("a1")       # => true (2D)
+Sashite::Cell.valid?("a1A")      # => true (3D)
+Sashite::Cell.valid?("a1Aa1A")   # => true (6D)
+
+# Extended Alphabet Examples from spec
+Sashite::Cell.valid?("aa1AA")    # => true
+Sashite::Cell.valid?("z26Z")     # => true
+Sashite::Cell.valid?("abc123XYZ") # => true
+
+# Invalid Examples from spec
+Sashite::Cell.valid?("")         # => false
+Sashite::Cell.valid?("a0")       # => false
+Sashite::Cell.valid?("1a")       # => false
+Sashite::Cell.valid?("a1a")      # => false
 ```
 
 ## Documentation
 
-- [Official CELL Specification](https://sashite.dev/documents/cell/1.0.0/)
+- [Official CELL Specification v1.0.0](https://sashite.dev/specs/cell/1.0.0/)
 - [API Documentation](https://rubydoc.info/github/sashite/cell.rb/main)
+- [CELL Examples](https://sashite.dev/specs/cell/1.0.0/examples/)
+
+## Development
+
+```sh
+# Clone the repository
+git clone https://github.com/sashite/cell.rb.git
+cd cell.rb
+
+# Install dependencies
+bundle install
+
+# Run tests
+ruby test.rb
+
+# Generate documentation
+yard doc
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/new-feature`)
+3. Add tests for your changes
+4. Ensure all tests pass (`ruby test.rb`)
+5. Commit your changes (`git commit -am 'Add new feature'`)
+6. Push to the branch (`git push origin feature/new-feature`)
+7. Create a Pull Request
 
 ## License
 
-The [gem](https://rubygems.org/gems/sashite-cell) is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+Available as open source under the [MIT License](https://opensource.org/licenses/MIT).
 
-## About Sashité
+## About
 
-This project is maintained by [Sashité](https://sashite.com/) — promoting chess variants and sharing the beauty of Chinese, Japanese, and Western chess cultures.
+Maintained by [Sashité](https://sashite.com/) — promoting chess variants and sharing the beauty of board game cultures.

@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
 module Sashite
-  # CELL (Cell Encoding Location Label) implementation for Ruby
+  # CELL (Coordinate Encoding for Layered Locations) implementation for Ruby
   #
   # Provides functionality for working with multi-dimensional game board coordinates
   # using a cyclical ASCII character system.
   #
-  # @see https://sashite.dev/documents/cell/1.0.0/ CELL Specification v1.0.0
+  # This implementation is strictly compliant with CELL Specification v1.0.0
+  # @see https://sashite.dev/specs/cell/1.0.0/ CELL Specification v1.0.0
   module Cell
-    # Regular expression for validating CELL coordinates according to specification
-    # This is the exact regex from the CELL specification v1.0.0
-    # Using non-capturing groups to avoid Ruby's nested quantifier warning
-    REGEX = /\A[a-z]+(?:[1-9]\d*[A-Z]+[a-z]+)*(?:[1-9]\d*(?:[A-Z]*))?\z/
+    # Regular expression for validating CELL coordinates according to specification v1.0.0
+    # Optimized version with redundant nested repeat operator removed for clean Ruby execution
+    REGEX = /\A[a-z]+(?:[1-9]\d*[A-Z]+[a-z]+)*(?:[1-9]\d*[A-Z]*)?\z/
 
     # Check if a string represents a valid CELL coordinate
     #
@@ -27,7 +27,7 @@ module Sashite
       return false unless string.is_a?(String)
       return false if string.empty?
 
-      # Use the formal regex for validation
+      # Use the optimized CELL v1.0.0 regex for validation
       string.match?(REGEX)
     end
 
@@ -104,13 +104,13 @@ module Sashite
 
     # Get the validation regular expression
     #
-    # @return [Regexp] the CELL validation regex
+    # @return [Regexp] the CELL validation regex from specification v1.0.0
     def self.regex
       REGEX
     end
 
     # Recursively parse a coordinate string into components
-    # following the strict CELL specification pattern
+    # following the strict CELL specification cyclical pattern
     #
     # @param string [String] the remaining string to parse
     # @param dimension [Integer] the current dimension (1-indexed)
@@ -123,23 +123,21 @@ module Sashite
 
       return [] if component.nil?
 
-      # Invalid format according to CELL specification
-
       # Extract component and recursively parse the rest
       remaining = string[component.length..]
       [component] + parse_recursive(remaining, dimension + 1)
     end
 
     # Determine the character set type for a given dimension
-    # Following CELL specification: dimension n % 3 determines character set
+    # Following CELL specification cyclical system: dimension n % 3 determines character set
     #
     # @param dimension [Integer] the dimension number (1-indexed)
     # @return [Symbol] :lowercase, :numeric, or :uppercase
     def self.dimension_type(dimension)
       case dimension % 3
-      when 1 then :lowercase
-      when 2 then :numeric
-      when 0 then :uppercase
+      when 1 then :lowercase  # n % 3 = 1: Latin lowercase letters
+      when 2 then :numeric    # n % 3 = 2: Arabic numerals
+      when 0 then :uppercase  # n % 3 = 0: Latin uppercase letters
       end
     end
 
@@ -152,13 +150,15 @@ module Sashite
     def self.extract_component(string, type)
       case type
       when :lowercase
+        # Latin lowercase letters: [a-z]+
         match = string.match(/\A([a-z]+)/)
         match ? match[1] : nil
       when :numeric
-        # CELL specification requires positive integers only (no zero)
+        # Arabic numerals: [1-9]\d* (CELL specification requires positive integers only)
         match = string.match(/\A([1-9]\d*)/)
         match ? match[1] : nil
       when :uppercase
+        # Latin uppercase letters: [A-Z]+
         match = string.match(/\A([A-Z]+)/)
         match ? match[1] : nil
       end
@@ -197,7 +197,7 @@ module Sashite
     end
 
     # Convert letter sequence to 0-indexed position
-    # Extended alphabet: a=0, b=1, ..., z=25, aa=26, ab=27, ..., zz=701, aaa=702, etc.
+    # Extended alphabet per CELL specification: a=0, b=1, ..., z=25, aa=26, ab=27, ..., zz=701, aaa=702, etc.
     #
     # @param letters [String] the letter sequence
     # @return [Integer] the 0-indexed position
@@ -219,7 +219,7 @@ module Sashite
     end
 
     # Convert 0-indexed position to letter sequence
-    # Extended alphabet: 0=a, 1=b, ..., 25=z, 26=aa, 27=ab, ..., 701=zz, 702=aaa, etc.
+    # Extended alphabet per CELL specification: 0=a, 1=b, ..., 25=z, 26=aa, 27=ab, ..., 701=zz, 702=aaa, etc.
     #
     # @param index [Integer] the 0-indexed position
     # @return [String] the letter sequence

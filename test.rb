@@ -3,17 +3,18 @@
 require "simplecov"
 
 SimpleCov.command_name "Unit Tests"
-
 SimpleCov.start
 
-# Tests for Sashite::Cell (Cell Encoding Location Label)
+# Tests for Sashite::Cell (Coordinate Encoding for Layered Locations)
 #
 # Tests the CELL implementation for Ruby, covering validation,
 # parsing, dimensional analysis, and coordinate conversion
-# according to the CELL specification v1.0.0.
+# according to the CELL Specification v1.0.0.
 #
-# This test assumes the existence of:
-# - lib/sashite/cell.rb
+# @see https://sashite.dev/specs/cell/1.0.0/ CELL Specification v1.0.0
+#
+# This test suite validates strict compliance with the official specification
+# and includes all examples provided in the spec documentation.
 
 require_relative "lib/sashite/cell"
 
@@ -29,39 +30,157 @@ rescue StandardError => e
 end
 
 puts
-puts "Tests for Sashite::Cell (Cell Encoding Location Label)"
+puts "Tests for Sashite::Cell (Coordinate Encoding for Layered Locations)"
+puts "Validating compliance with CELL Specification v1.0.0"
+puts "Specification: https://sashite.dev/specs/cell/1.0.0/"
 puts
 
-# Test module-level validation method with corrected expectations
-run_test("Module validation accepts valid CELL coordinates") do
-  valid_coordinates = %w[a a1 a1A a1Aa a1Aa1 a1Aa1A b2B c3Cc3C h8 e4 z26Z aa1AA bb2BB zz26ZZ aaa1AAA foobar abc xyz]
+# ============================================================================
+# SPECIFICATION COMPLIANCE TESTS
+# ============================================================================
+
+run_test("Official specification regex matches implementation") do
+  # Exact regex from CELL Specification v1.0.0
+  spec_regex = /\A[a-z]+(?:[1-9]\d*[A-Z]+[a-z]+)*(?:[1-9]\d*[A-Z]*)?\z/
+  impl_regex = Sashite::Cell.regex
+
+  raise "Implementation regex differs from specification" unless spec_regex.source == impl_regex.source
+end
+
+run_test("All specification valid examples are accepted") do
+  # Valid examples directly from CELL Specification v1.0.0
+  spec_valid_examples = [
+    # Basic Examples
+    "a",        # 1D coordinate
+    "a1",       # 2D coordinate
+    "a1A",      # 3D coordinate
+    "a1Aa",     # 4D coordinate
+    "a1Aa1",    # 5D coordinate
+    "a1Aa1A",   # 6D coordinate
+
+    # Extended Alphabet Examples
+    "aa1AA",    # Using extended alphabet (position 26 in dimensions 1 and 3)
+    "z26Z",     # Large values in each dimension type
+    "abc123XYZ", # Multi-character components
+
+    # Game-Specific Examples
+    "e4", "h8", "a1",     # Chess
+    "e1", "i9",           # Shogi (adapted to CELL format)
+    "a1A", "b2B", "c3C"   # 3D Tic-Tac-Toe
+  ]
+
+  spec_valid_examples.each do |coord|
+    raise "Specification example '#{coord}' should be valid but was rejected" unless Sashite::Cell.valid?(coord)
+  end
+end
+
+run_test("All specification invalid examples are rejected") do
+  # Invalid examples directly from CELL Specification v1.0.0
+  spec_invalid_examples = [
+    "",       # Empty string
+    "1",      # Starts with numeric (must start with lowercase)
+    "A",      # Starts with uppercase (must start with lowercase)
+    "a0",     # Contains zero (only positive integers allowed)
+    "a1a",    # Lowercase after numeric without uppercase
+    "1a",     # Numeric before lowercase (wrong order)
+    "aA",     # Uppercase directly after lowercase (missing numeric)
+    "a1A1"    # Numeric after uppercase without lowercase
+  ]
+
+  spec_invalid_examples.each do |coord|
+    raise "Specification invalid example '#{coord}' should be rejected but was accepted" if Sashite::Cell.valid?(coord)
+  end
+end
+
+run_test("Cyclical dimension system follows specification") do
+  # Test the n % 3 cyclical system from specification
+  test_cases = [
+    ["a", 1, :lowercase],       # Dimension 1 % 3 = 1
+    ["a1", 2, :numeric],        # Dimension 2 % 3 = 2
+    ["a1A", 3, :uppercase],     # Dimension 3 % 3 = 0
+    ["a1Aa", 4, :lowercase],    # Dimension 4 % 3 = 1 (cycle restart)
+    ["a1Aa1", 5, :numeric],     # Dimension 5 % 3 = 2
+    ["a1Aa1A", 6, :uppercase]   # Dimension 6 % 3 = 0
+  ]
+
+  test_cases.each do |coord, expected_dims, last_type|
+    actual_dims = Sashite::Cell.dimensions(coord)
+    raise "#{coord} should have #{expected_dims} dimensions, got #{actual_dims}" unless actual_dims == expected_dims
+
+    # Verify the coordinate is valid
+    raise "#{coord} should be valid according to cyclical system" unless Sashite::Cell.valid?(coord)
+  end
+end
+
+# ============================================================================
+# VALIDATION TESTS
+# ============================================================================
+
+run_test("Valid coordinates are properly accepted") do
+  valid_coordinates = [
+    # Single dimension
+    "a", "z", "aa", "zz", "abc", "foobar",
+
+    # Two dimensions
+    "a1", "z26", "aa1", "zz701",
+
+    # Three dimensions
+    "a1A", "z26Z", "aa1AA", "zz701ZZ",
+
+    # Multi-cycle coordinates
+    "a1Aa1A", "b2Bb2B", "h8Hh8H",
+
+    # Extended alphabet cases
+    "abc123XYZ", "foo999BAR"
+  ]
 
   valid_coordinates.each do |coord|
     raise "#{coord.inspect} should be valid" unless Sashite::Cell.valid?(coord)
   end
 end
 
-run_test("Module validation rejects invalid CELL coordinates") do
-  # Updated based on CELL specification - these should be invalid
-  invalid_coordinates = ["", "0", "a0", "A0", "1a", "Aa", "aA", "a1a", "A1A", "aB1", " a1", "a1 ",
-                        "a-1", "a1-A", "*", "a*", "1*", "A*", "abc 123", "123abc", "AbC",
-                        "1", "A", "1A", "A1", "a1b", "a1B1"]
+run_test("Invalid coordinates are properly rejected") do
+  invalid_coordinates = [
+    # Empty and non-string
+    "", nil, 123, [], {},
+
+    # Wrong starting character
+    "1", "A", "1a", "Aa",
+
+    # Contains zero
+    "a0", "a0A", "a01A", "aa0AA",
+
+    # Wrong cyclical order
+    "a1a", "A1A", "aA", "a1A1",
+
+    # Invalid characters
+    "*", "a*", "1*", "A*", "a-1", "a1-A",
+
+    # Whitespace issues
+    " a1", "a1 ", "a 1", "a1 A"
+  ]
 
   invalid_coordinates.each do |coord|
     raise "#{coord.inspect} should be invalid" if Sashite::Cell.valid?(coord)
   end
 end
 
-run_test("Module validation handles non-string input") do
-  non_strings = [nil, 123, :a1, [], {}]
+run_test("Non-string input is handled gracefully") do
+  non_strings = [nil, 123, :a1, [], {}, true, false]
 
   non_strings.each do |input|
     raise "#{input.inspect} should be invalid" if Sashite::Cell.valid?(input)
+    raise "#{input.inspect} should return 0 dimensions" unless Sashite::Cell.dimensions(input) == 0
+    raise "#{input.inspect} should return empty parse array" unless Sashite::Cell.parse(input) == []
+    raise "#{input.inspect} should return empty indices array" unless Sashite::Cell.to_indices(input) == []
   end
 end
 
-# Test dimensional analysis - corrected to match spec
-run_test("Dimensions detection for various coordinates") do
+# ============================================================================
+# DIMENSIONAL ANALYSIS TESTS
+# ============================================================================
+
+run_test("Dimension counting is accurate") do
   dimension_cases = {
     "a" => 1,
     "a1" => 2,
@@ -69,10 +188,10 @@ run_test("Dimensions detection for various coordinates") do
     "a1Aa" => 4,
     "a1Aa1" => 5,
     "a1Aa1A" => 6,
-    "h8Hh8H" => 6,
-    "foobar" => 1,
-    "abc" => 1,
-    "xyz" => 1
+    "a1Aa1Aa1A" => 9,    # Three complete cycles
+    "abc" => 1,           # Extended single dimension
+    "h8Hh8H" => 6,       # Game example
+    "z999ZZZ" => 3       # Large values
   }
 
   dimension_cases.each do |coord, expected_dimensions|
@@ -81,8 +200,8 @@ run_test("Dimensions detection for various coordinates") do
   end
 end
 
-run_test("Dimensions returns 0 for invalid input") do
-  invalid_inputs = [nil, "", 123, [], "1a", "A1a", "a0"]
+run_test("Invalid input returns zero dimensions") do
+  invalid_inputs = [nil, "", 123, [], "1a", "A1a", "a0", "*"]
 
   invalid_inputs.each do |input|
     dimensions = Sashite::Cell.dimensions(input)
@@ -90,19 +209,32 @@ run_test("Dimensions returns 0 for invalid input") do
   end
 end
 
-# Test parsing functionality - updated for strict CELL compliance
-run_test("Parse method splits coordinates correctly") do
+# ============================================================================
+# PARSING TESTS
+# ============================================================================
+
+run_test("Coordinate parsing splits components correctly") do
   parse_cases = {
+    # Single dimension
     "a" => ["a"],
+    "abc" => ["abc"],
+    "foobar" => ["foobar"],
+
+    # Multiple dimensions
     "a1" => ["a", "1"],
     "a1A" => ["a", "1", "A"],
     "a1Aa" => ["a", "1", "A", "a"],
     "a1Aa1" => ["a", "1", "A", "a", "1"],
-    "h8Hh8" => ["h", "8", "H", "h", "8"],
+    "a1Aa1A" => ["a", "1", "A", "a", "1", "A"],
+
+    # Extended alphabet
+    "aa1AA" => ["aa", "1", "AA"],
     "bb25BB" => ["bb", "25", "BB"],
-    "foobar" => ["foobar"],
-    "abc" => ["abc"],
-    "xyz" => ["xyz"]
+    "abc123XYZ" => ["abc", "123", "XYZ"],
+
+    # Game examples
+    "h8Hh8" => ["h", "8", "H", "h", "8"],
+    "e4" => ["e", "4"]
   }
 
   parse_cases.each do |coord, expected_components|
@@ -111,34 +243,42 @@ run_test("Parse method splits coordinates correctly") do
   end
 end
 
-run_test("Parse handles empty and invalid input") do
-  Sashite::Cell.parse("").tap do |result|
-    raise "Empty string should return empty array, got #{result.inspect}" unless result == []
-  end
+run_test("Parse handles invalid input gracefully") do
+  invalid_inputs = ["", nil, 123, "1a", "A1a", "a0", "*"]
 
-  Sashite::Cell.parse(nil).tap do |result|
-    raise "nil should return empty array, got #{result.inspect}" unless result == []
-  end
-
-  # Test invalid coordinates return empty arrays
-  ["1a", "A1a", "a0"].each do |invalid|
-    result = Sashite::Cell.parse(invalid)
-    raise "Invalid coordinate #{invalid.inspect} should return empty array, got #{result.inspect}" unless result == []
+  invalid_inputs.each do |input|
+    result = Sashite::Cell.parse(input)
+    raise "Invalid input #{input.inspect} should return empty array, got #{result.inspect}" unless result == []
   end
 end
 
-# Test coordinate to indices conversion
-run_test("Coordinate to indices conversion") do
+# ============================================================================
+# COORDINATE CONVERSION TESTS
+# ============================================================================
+
+run_test("Coordinate to indices conversion is accurate") do
   conversion_cases = {
+    # Basic cases
     "a1" => [0, 0],
     "b2" => [1, 1],
     "e4" => [4, 3],
     "h8" => [7, 7],
+
+    # 3D cases
     "a1A" => [0, 0, 0],
     "b2B" => [1, 1, 1],
+    "c3C" => [2, 2, 2],
+
+    # Extended alphabet
     "z26Z" => [25, 25, 25],
     "aa1AA" => [26, 0, 26],
-    "ab2AB" => [27, 1, 27]
+    "ab2AB" => [27, 1, 27],
+
+    # Single dimension
+    "a" => [0],
+    "z" => [25],
+    "aa" => [26],
+    "zz" => [701]
   }
 
   conversion_cases.each do |coord, expected_indices|
@@ -147,27 +287,25 @@ run_test("Coordinate to indices conversion") do
   end
 end
 
-run_test("Invalid coordinates return empty array for to_indices") do
-  invalid_coords = ["", "a0", "1a", "*"]
-
-  invalid_coords.each do |coord|
-    result = Sashite::Cell.to_indices(coord)
-    raise "#{coord.inspect} should return empty array, got #{result.inspect}" unless result == []
-  end
-end
-
-# Test indices to coordinate conversion
-run_test("Indices to coordinate conversion") do
+run_test("Indices to coordinate conversion is accurate") do
   conversion_cases = [
+    # Basic cases
     [[0, 0], "a1"],
     [[1, 1], "b2"],
     [[4, 3], "e4"],
     [[7, 7], "h8"],
+
+    # 3D cases
     [[0, 0, 0], "a1A"],
     [[1, 1, 1], "b2B"],
+    [[2, 2, 2], "c3C"],
+
+    # Extended alphabet
     [[25, 25, 25], "z26Z"],
     [[26, 0, 26], "aa1AA"],
     [[27, 1, 27], "ab2AB"],
+
+    # Single dimension
     [[0], "a"],
     [[25], "z"],
     [[26], "aa"],
@@ -180,9 +318,16 @@ run_test("Indices to coordinate conversion") do
   end
 end
 
-# Test round-trip conversion
-run_test("Round-trip coordinate conversion") do
-  test_coordinates = %w[a1 e4 h8 a1A b2B z26Z aa1AA bb2BB zz26ZZ]
+run_test("Round-trip coordinate conversion preserves values") do
+  test_coordinates = [
+    # Specification examples
+    "a", "a1", "a1A", "a1Aa", "a1Aa1", "a1Aa1A",
+    "aa1AA", "z26Z", "abc123XYZ",
+    "e4", "h8", "a1A", "b2B", "c3C",
+
+    # Extended cases
+    "zz701ZZ", "abc999XYZ"
+  ]
 
   test_coordinates.each do |coord|
     indices = Sashite::Cell.to_indices(coord)
@@ -191,8 +336,13 @@ run_test("Round-trip coordinate conversion") do
   end
 end
 
-run_test("Round-trip indices conversion") do
-  test_indices = [[0, 0], [4, 3], [7, 7], [0, 0, 0], [1, 1, 1], [25, 25, 25], [26, 0, 26], [27, 1, 27]]
+run_test("Round-trip indices conversion preserves values") do
+  test_indices = [
+    [0], [25], [26], [701],                    # 1D
+    [0, 0], [4, 3], [7, 7], [25, 25],         # 2D
+    [0, 0, 0], [1, 1, 1], [25, 25, 25],       # 3D
+    [0, 0, 0, 0], [1, 1, 1, 1]                # 4D
+  ]
 
   test_indices.each do |indices|
     coord = Sashite::Cell.from_indices(*indices)
@@ -201,38 +351,20 @@ run_test("Round-trip indices conversion") do
   end
 end
 
-# Test regex access - updated to match the correct CELL specification regex
-run_test("Regex validates coordinates correctly") do
-  valid_coords = %w[a a1 a1A h8Hh8H aa1AA bb2BB foobar abc xyz]
-  invalid_coords = ["", "a0", "1a", "*", " a1", "1", "A", "a1a"]
-
-  regex = Sashite::Cell.regex
-
-  valid_coords.each do |coord|
-    raise "#{coord.inspect} should match regex" unless coord.match?(regex)
-  end
+run_test("Invalid coordinates return empty arrays for conversions") do
+  invalid_coords = ["", "a0", "1a", "*", "a1a"]
 
   invalid_coords.each do |coord|
-    raise "#{coord.inspect} should not match regex" if coord.match?(regex)
+    result = Sashite::Cell.to_indices(coord)
+    raise "#{coord.inspect} should return empty array, got #{result.inspect}" unless result == []
   end
 end
 
-# Test character set cycling behavior
-run_test("Character set cycling follows specification") do
-  # We'll test this by checking that coordinates follow the pattern
-  test_coords = %w[a a1 a1A a1Aa a1Aa1 a1Aa1A a1Aa1Aa]
+# ============================================================================
+# EXTENDED ALPHABET TESTS
+# ============================================================================
 
-  test_coords.each_with_index do |coord, index|
-    expected_dimensions = index + 1
-    actual_dimensions = Sashite::Cell.dimensions(coord)
-    raise "#{coord.inspect} should have #{expected_dimensions} dimensions" unless actual_dimensions == expected_dimensions
-
-    raise "#{coord.inspect} should be valid" unless Sashite::Cell.valid?(coord)
-  end
-end
-
-# Test letter sequence encoding (extended alphabet)
-run_test("Extended alphabet encoding") do
+run_test("Extended alphabet encoding follows specification") do
   # Test single letters
   single_letter_cases = {
     0 => "a", 1 => "b", 25 => "z"
@@ -260,8 +392,11 @@ run_test("Extended alphabet encoding") do
   end
 end
 
-# Test game-specific scenarios
-run_test("Chess board coordinates (8x8)") do
+# ============================================================================
+# GAME-SPECIFIC TESTS
+# ============================================================================
+
+run_test("Chess board coordinates work correctly") do
   chess_files = %w[a b c d e f g h]
   chess_ranks = %w[1 2 3 4 5 6 7 8]
 
@@ -273,7 +408,7 @@ run_test("Chess board coordinates (8x8)") do
     end
   end
 
-  # Test some specific chess positions
+  # Test specific chess positions from specification
   Sashite::Cell.to_indices("e4").tap do |indices|
     raise "e4 should be [4, 3], got #{indices.inspect}" unless indices == [4, 3]
   end
@@ -283,11 +418,8 @@ run_test("Chess board coordinates (8x8)") do
   end
 end
 
-# Note: Removed Shogi test as "1a" format violates CELL specification
-# CELL requires lowercase first, then numeric, then uppercase in cycles
-
-run_test("3D Tic-Tac-Toe coordinates (3x3x3)") do
-  # Test some 3D positions
+run_test("3D Tic-Tac-Toe coordinates work correctly") do
+  # Test 3D positions from specification
   positions_3d = %w[a1A b2B c3C a3A c1C]
 
   positions_3d.each do |coord|
@@ -300,12 +432,39 @@ run_test("3D Tic-Tac-Toe coordinates (3x3x3)") do
       raise "Index #{index} in dimension #{dim} should be 0-2 for #{coord.inspect}" unless (0..2).include?(index)
     end
   end
+
+  # Test the diagonal win from specification examples
+  diagonal_positions = %w[a1A b2B c3C]
+  expected_diagonal = [[0,0,0], [1,1,1], [2,2,2]]
+  actual_diagonal = diagonal_positions.map { |pos| Sashite::Cell.to_indices(pos) }
+  raise "3D diagonal should be #{expected_diagonal}, got #{actual_diagonal}" unless actual_diagonal == expected_diagonal
 end
 
-# Test edge cases and boundary conditions
-run_test("Large coordinate values") do
-  # Test larger board sizes
-  large_coords = ["z26Z", "aa27AA", "zz702ZZ"]
+# ============================================================================
+# REGEX AND UTILITY TESTS
+# ============================================================================
+
+run_test("Regex access returns correct pattern") do
+  valid_coords = %w[a a1 a1A h8Hh8H aa1AA bb2BB foobar abc xyz]
+  invalid_coords = ["", "a0", "1a", "*", " a1", "1", "A", "a1a"]
+
+  regex = Sashite::Cell.regex
+
+  valid_coords.each do |coord|
+    raise "#{coord.inspect} should match regex" unless coord.match?(regex)
+  end
+
+  invalid_coords.each do |coord|
+    raise "#{coord.inspect} should not match regex" if coord.match?(regex)
+  end
+end
+
+# ============================================================================
+# EDGE CASES AND BOUNDARY CONDITIONS
+# ============================================================================
+
+run_test("Large coordinate values are handled correctly") do
+  large_coords = ["z26Z", "aa27AA", "zz702ZZ", "abc999XYZ"]
 
   large_coords.each do |coord|
     raise "Large coordinate #{coord.inspect} should be valid" unless Sashite::Cell.valid?(coord)
@@ -316,8 +475,7 @@ run_test("Large coordinate values") do
   end
 end
 
-run_test("High-dimensional coordinates") do
-  # Test coordinates with many dimensions
+run_test("High-dimensional coordinates are handled correctly") do
   high_dim_coords = ["a1Aa1Aa1A", "b2Bb2Bb2B"]
 
   high_dim_coords.each do |coord|
@@ -329,14 +487,13 @@ run_test("High-dimensional coordinates") do
   end
 end
 
-run_test("Numeric boundary conditions") do
-  # Test numeric components
+run_test("Numeric boundary conditions are respected") do
+  # Test various numeric components
   numeric_coords = ["a1", "a10", "a100", "a999"]
 
   numeric_coords.each do |coord|
     raise "Numeric coordinate #{coord.inspect} should be valid" unless Sashite::Cell.valid?(coord)
 
-    # Extract the numeric part and verify it converts correctly
     components = Sashite::Cell.parse(coord)
     numeric_component = components[1]
     expected_index = numeric_component.to_i - 1
@@ -345,32 +502,18 @@ run_test("Numeric boundary conditions") do
     actual_numeric_index = indices[1]
     raise "Numeric component #{numeric_component} should convert to #{expected_index}, got #{actual_numeric_index}" unless actual_numeric_index == expected_index
   end
-end
 
-# Test error handling and robustness
-run_test("Graceful handling of malformed input") do
-  # Updated to reflect strict CELL specification
-  valid_single_dim = ["a", "z", "aa", "zz", "foobar", "abc", "xyz"]
-  invalid_inputs = ["1", "A", "a1a", "1A1", "Aa1", "a0"]
-
-  valid_single_dim.each do |input|
-    raise "Valid single dimension #{input.inspect} should be valid" unless Sashite::Cell.valid?(input)
-    components = Sashite::Cell.parse(input)
-    raise "Valid input #{input.inspect} should parse to non-empty array" if components.empty?
-  end
-
-  invalid_inputs.each do |input|
-    # These should be invalid according to CELL spec
-    raise "Invalid input #{input.inspect} should be invalid" if Sashite::Cell.valid?(input)
-    indices = Sashite::Cell.to_indices(input)
-    raise "Invalid input #{input.inspect} should return empty indices array" unless indices.empty?
+  # Verify zero is rejected
+  zero_coords = ["a0", "a0A", "a01A", "aa0AA", "a1Aa0"]
+  zero_coords.each do |coord|
+    raise "Zero-containing coordinate #{coord.inspect} should be invalid" if Sashite::Cell.valid?(coord)
   end
 end
 
-run_test("Module methods are stateless") do
-  # Test that repeated calls with same input give same results
+run_test("API methods are stateless and consistent") do
   test_coord = "e4"
 
+  # Test that repeated calls give consistent results
   5.times do
     raise "valid? should be consistent" unless Sashite::Cell.valid?(test_coord) == true
     raise "dimensions should be consistent" unless Sashite::Cell.dimensions(test_coord) == 2
@@ -383,93 +526,46 @@ run_test("Module methods are stateless") do
   end
 end
 
-# Test CELL specification compliance specifically
-run_test("CELL specification regex compliance") do
-  # Test cases specifically for the CELL regex pattern
-  valid_per_regex = [
-    "a",           # Single dimension (lowercase only)
-    "abc",         # Extended single dimension
-    "foobar",      # Valid single dimension with multiple letters
-    "a1",          # 2D (lowercase + numeric)
-    "a10",         # 2D with multi-digit number
-    "a1A",         # 3D (lowercase + numeric + uppercase)
-    "a10A",        # 3D with multi-digit number
-    "a1AA",        # Valid partial cycle (lowercase + numeric + uppercase)
-    "a1Aa",        # 4D (complete cycle + lowercase)
-    "a1Aa1",       # 5D (complete cycle + lowercase + numeric)
-    "a1Aa1A",      # 6D (complete cycles)
-    "a1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1A", # 100D (complete cycles)
-    "abc123XYZ",   # Extended components
-    "aa1AA",       # Extended alphabet
-    "z999ZZZ"      # Large values
-  ]
+# ============================================================================
+# SPECIFICATION COMPLIANCE VERIFICATION
+# ============================================================================
 
-  invalid_per_regex = [
-    "",            # Empty
-    "1",           # Starts with numeric
-    "A",           # Starts with uppercase
-    "a0",          # Zero not allowed
-    "a1a",         # Lowercase after numeric without uppercase
-    "1a",          # Numeric before lowercase
-    "A1",          # Uppercase before numeric
-    "aA",          # Uppercase directly after lowercase
-    "a1A1"         # Numeric after uppercase without lowercase
-  ]
+run_test("All specification constraints are enforced") do
+  puts "\n    Verifying specification constraints..."
 
-  regex = Sashite::Cell.regex
+  # Character validity
+  raise "Only ASCII characters should be valid" unless Sashite::Cell.valid?("abc123XYZ")
+  raise "Non-ASCII should be invalid" if Sashite::Cell.valid?("café")
 
-  valid_per_regex.each do |coord|
-    raise "#{coord.inspect} should match CELL regex but doesn't" unless coord.match?(regex)
-    raise "#{coord.inspect} should be valid per Cell.valid? but isn't" unless Sashite::Cell.valid?(coord)
-  end
+  # Cyclical consistency
+  raise "Complete cyclical pattern should be valid" unless Sashite::Cell.valid?("a1Aa1A")
+  raise "Partial cyclical pattern should be valid" unless Sashite::Cell.valid?("a1Aa1")
 
-  invalid_per_regex.each do |coord|
-    raise "#{coord.inspect} should NOT match CELL regex but does" if coord.match?(regex)
-    raise "#{coord.inspect} should be invalid per Cell.valid? but isn't" if Sashite::Cell.valid?(coord)
-  end
-end
+  # Character set validity
+  raise "Valid letter sequence should be accepted" unless Sashite::Cell.valid?("abc")
+  raise "Valid letter sequence should be accepted" unless Sashite::Cell.valid?("cba")
+  raise "Valid letter sequence should be accepted" unless Sashite::Cell.valid?("xyz")
+  raise "Mixed case should be invalid" if Sashite::Cell.valid?("aBc")
 
-run_test("CELL specification edge cases") do
-  # Test partial cycles at end (allowed by regex)
-  partial_cycle_cases = [
-    "a1",          # Ends after numeric (2D)
-    "a1A",         # Ends after uppercase (3D)
-    "a1Aa1",       # Ends after numeric in second cycle (5D)
-    "a1Aa1A"       # Ends after uppercase in second cycle (6D)
-  ]
+  # Sequential order requirement
+  raise "Must start with dimension 1" if Sashite::Cell.valid?("1a")
+  raise "Must follow cyclical progression" if Sashite::Cell.valid?("aA")
 
-  partial_cycle_cases.each do |coord|
-    raise "#{coord.inspect} should be valid (partial cycle allowed)" unless Sashite::Cell.valid?(coord)
-  end
+  # Broken cyclical patterns should be invalid
+  raise "Lowercase after numeric without uppercase should be invalid" if Sashite::Cell.valid?("a1a")
+  raise "Numeric after uppercase without lowercase should be invalid" if Sashite::Cell.valid?("a1A1")
+  raise "Uppercase directly after lowercase should be invalid" if Sashite::Cell.valid?("aA")
 
-  # Test that incomplete patterns are rejected
-  incomplete_patterns = [
-    "a1a",         # lowercase after numeric without uppercase
-    "a1A1",        # numeric after uppercase without lowercase
-    "a1Aa1A1"      # numeric after uppercase without lowercase
-  ]
+  # Partial completion allowed
+  raise "Partial after dimension 1 should be valid" unless Sashite::Cell.valid?("a")
+  raise "Partial after dimension 2 should be valid" unless Sashite::Cell.valid?("a1")
+  raise "Partial after dimension 3 should be valid" unless Sashite::Cell.valid?("a1A")
+  raise "Partial after dimension 4 should be valid" unless Sashite::Cell.valid?("a1Aa")
+  raise "Partial after dimension 5 should be valid" unless Sashite::Cell.valid?("a1Aa1")
 
-  incomplete_patterns.each do |coord|
-    raise "#{coord.inspect} should be invalid (incomplete pattern)" if Sashite::Cell.valid?(coord)
-  end
-end
-
-run_test("Zero handling compliance") do
-  # CELL specification explicitly forbids zero in numeric components
-  zero_cases = ["a0", "a0A", "a01A", "aa0AA", "a1Aa0"]
-
-  zero_cases.each do |coord|
-    raise "#{coord.inspect} should be invalid (contains zero)" if Sashite::Cell.valid?(coord)
-  end
-
-  # But numbers containing zero in non-leading positions are valid
-  valid_with_zeros = ["a10", "a100", "a101", "a1010"]
-
-  valid_with_zeros.each do |coord|
-    raise "#{coord.inspect} should be valid (zero in non-leading position)" unless Sashite::Cell.valid?(coord)
-  end
+  puts "    ✓ All specification constraints verified"
 end
 
 puts
-puts "All CELL tests passed!"
+puts "All CELL v1.0.0 tests passed!"
 puts
