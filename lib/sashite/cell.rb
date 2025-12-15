@@ -9,11 +9,14 @@ module Sashite
   # This implementation is strictly compliant with CELL Specification v1.0.0
   # @see https://sashite.dev/specs/cell/1.0.0/ CELL Specification v1.0.0
   module Cell
-    # Regular expression for validating CELL coordinates according to specification v1.0.0
-    # Optimized version with redundant nested repeat operator removed for clean Ruby execution
-    REGEX = /\A[a-z]+(?:[1-9]\d*[A-Z]+[a-z]+)*(?:[1-9]\d*[A-Z]*)?\z/
+    # Regular expression from CELL Specification v1.0.0
+    # Note: Line breaks must be rejected separately (see valid?)
+    REGEX = /^[a-z]+(?:[1-9][0-9]*[A-Z]+[a-z]+)*(?:[1-9][0-9]*[A-Z]*)?$/
 
     # Check if a string represents a valid CELL coordinate
+    #
+    # Implements full-string matching as required by the CELL specification.
+    # Rejects any input containing line breaks (\r or \n).
     #
     # @param string [String] the string to validate
     # @return [Boolean] true if the string is a valid CELL coordinate
@@ -23,11 +26,12 @@ module Sashite
     #   Sashite::Cell.valid?("a1A")    # => true
     #   Sashite::Cell.valid?("*")      # => false
     #   Sashite::Cell.valid?("a0")     # => false
+    #   Sashite::Cell.valid?("a1\n")   # => false
     def self.valid?(string)
       return false unless string.is_a?(String)
       return false if string.empty?
+      return false if string.include?("\r") || string.include?("\n")
 
-      # Use the optimized CELL v1.0.0 regex for validation
       string.match?(REGEX)
     end
 
@@ -104,6 +108,10 @@ module Sashite
 
     # Get the validation regular expression
     #
+    # Note: This regex alone does not guarantee full compliance. The valid?
+    # method additionally rejects strings containing line breaks, as required
+    # by the specification's anchoring requirements.
+    #
     # @return [Regexp] the CELL validation regex from specification v1.0.0
     def self.regex
       REGEX
@@ -151,15 +159,15 @@ module Sashite
       case type
       when :lowercase
         # Latin lowercase letters: [a-z]+
-        match = string.match(/\A([a-z]+)/)
+        match = string.match(/^([a-z]+)/)
         match ? match[1] : nil
       when :numeric
-        # Arabic numerals: [1-9]\d* (CELL specification requires positive integers only)
-        match = string.match(/\A([1-9]\d*)/)
+        # Arabic numerals: [1-9][0-9]* (CELL specification requires positive integers only)
+        match = string.match(/^([1-9][0-9]*)/)
         match ? match[1] : nil
       when :uppercase
         # Latin uppercase letters: [A-Z]+
-        match = string.match(/\A([A-Z]+)/)
+        match = string.match(/^([A-Z]+)/)
         match ? match[1] : nil
       end
     end
@@ -248,5 +256,9 @@ module Sashite
 
       result
     end
+
+    private_class_method :parse_recursive, :dimension_type, :extract_component
+    private_class_method :component_to_index, :index_to_component
+    private_class_method :letters_to_index, :index_to_letters
   end
 end

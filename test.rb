@@ -41,7 +41,7 @@ puts
 
 run_test("Official specification regex matches implementation") do
   # Exact regex from CELL Specification v1.0.0
-  spec_regex = /\A[a-z]+(?:[1-9]\d*[A-Z]+[a-z]+)*(?:[1-9]\d*[A-Z]*)?\z/
+  spec_regex = %r{^[a-z]+(?:[1-9][0-9]*[A-Z]+[a-z]+)*(?:[1-9][0-9]*[A-Z]*)?$}
   impl_regex = Sashite::Cell.regex
 
   raise "Implementation regex differs from specification" unless spec_regex.source == impl_regex.source
