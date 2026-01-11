@@ -3,7 +3,7 @@
 [![Version](https://img.shields.io/github/v/tag/sashite/cell.rb?label=Version&logo=github)](https://github.com/sashite/cell.rb/tags)
 [![Yard documentation](https://img.shields.io/badge/Yard-documentation-blue.svg?logo=github)](https://rubydoc.info/github/sashite/cell.rb/main)
 ![Ruby](https://github.com/sashite/cell.rb/actions/workflows/main.yml/badge.svg?branch=main)
-[![License](https://img.shields.io/github/license/sashite/cell.rb?label=License&logo=github)](https://github.com/sashite/cell.rb/raw/main/LICENSE.md)
+[![License](https://img.shields.io/github/license/sashite/cell.rb?label=License&logo=github)](https://github.com/sashite/cell.rb/raw/main/LICENSE)
 
 > **CELL** (Coordinate Encoding for Layered Locations) support for the Ruby language.
 
@@ -305,43 +305,12 @@ Sashite::Cell.valid?("1a")       # => false
 Sashite::Cell.valid?("a1a")      # => false
 ```
 
-## Documentation
+## Related Specifications
 
-- [Official CELL Specification v1.0.0](https://sashite.dev/specs/cell/1.0.0/)
-- [API Documentation](https://rubydoc.info/github/sashite/cell.rb/main)
-- [CELL Examples](https://sashite.dev/specs/cell/1.0.0/examples/)
-
-## Development
-
-```sh
-# Clone the repository
-git clone https://github.com/sashite/cell.rb.git
-cd cell.rb
-
-# Install dependencies
-bundle install
-
-# Run tests
-ruby test.rb
-
-# Generate documentation
-yard doc
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/new-feature`)
-3. Add tests for your changes
-4. Ensure all tests pass (`ruby test.rb`)
-5. Commit your changes (`git commit -am 'Add new feature'`)
-6. Push to the branch (`git push origin feature/new-feature`)
-7. Create a Pull Request
+- [Game Protocol](https://sashite.dev/game-protocol/) — Conceptual foundation
+- [CELL Specification](https://sashite.dev/specs/cell/1.0.0/) — Official specification
+- [CELL Examples](https://sashite.dev/specs/cell/1.0.0/examples/) — Usage examples
 
 ## License
 
-Available as open source under the [MIT License](https://opensource.org/licenses/MIT).
-
-## About
-
-Maintained by [Sashité](https://sashite.com/) — promoting chess variants and sharing the beauty of board game cultures.
+Available as open source under the [Apache License 2.0](https://opensource.org/licenses/Apache-2.0).

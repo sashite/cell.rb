@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.summary                = "CELL (Coordinate Encoding for Layered Locations) implementation for Ruby"
   spec.description            = "CELL defines a standardized format for representing coordinates on multi-dimensional game boards using a cyclical ASCII character system. This gem provides a Ruby interface for working with unlimited dimensional game coordinates through a clean, functional API that strictly follows the CELL Specification v1.0.0."
   spec.homepage               = "https://github.com/sashite/cell.rb"
-  spec.license                = "MIT"
-  spec.files                  = ::Dir["LICENSE.md", "README.md", "lib/**/*"]
+  spec.license                = "Apache-2.0"
+  spec.files                  = ::Dir["LICENSE", "README.md", "lib/**/*"]
   spec.required_ruby_version  = ">= 3.2.0"
 
   spec.metadata = {
