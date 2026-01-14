@@ -1,264 +1,82 @@
 # frozen_string_literal: true
 
+require_relative "cell/coordinate"
+require_relative "cell/dumper"
+require_relative "cell/parser"
+
 module Sashite
-  # CELL (Coordinate Encoding for Layered Locations) implementation for Ruby
+  # CELL (Coordinate Encoding for Layered Locations) implementation.
   #
-  # Provides functionality for working with multi-dimensional game board coordinates
-  # using a cyclical ASCII character system.
+  # Provides parsing, formatting, and validation of CELL coordinates
+  # for multi-dimensional game boards (up to 3 dimensions).
   #
-  # This implementation is strictly compliant with CELL Specification v1.0.0
-  # @see https://sashite.dev/specs/cell/1.0.0/ CELL Specification v1.0.0
+  # @example Parsing a coordinate
+  #   coord = Sashite::Cell.parse("e4")
+  #   coord.indices    # => [4, 3]
+  #   coord.dimensions # => 2
+  #
+  # @example Formatting indices
+  #   Sashite::Cell.format(4, 3) # => "e4"
+  #
+  # @example Validation
+  #   Sashite::Cell.valid?("e4") # => true
+  #   Sashite::Cell.valid?("a0") # => false
+  #
+  # @see https://sashite.dev/specs/cell/1.0.0/
   module Cell
-    # Regular expression from CELL Specification v1.0.0
-    # Note: Line breaks must be rejected separately (see valid?)
-    REGEX = /^[a-z]+(?:[1-9][0-9]*[A-Z]+[a-z]+)*(?:[1-9][0-9]*[A-Z]*)?$/
-
-    # Check if a string represents a valid CELL coordinate
+    # Parses a CELL string into a Coordinate.
     #
-    # Implements full-string matching as required by the CELL specification.
-    # Rejects any input containing line breaks (\r or \n).
-    #
-    # @param string [String] the string to validate
-    # @return [Boolean] true if the string is a valid CELL coordinate
+    # @param string [String] CELL coordinate string
+    # @return [Coordinate] parsed coordinate
+    # @raise [ArgumentError] if the string is not a valid CELL coordinate
     #
     # @example
-    #   Sashite::Cell.valid?("a1")     # => true
-    #   Sashite::Cell.valid?("a1A")    # => true
-    #   Sashite::Cell.valid?("*")      # => false
-    #   Sashite::Cell.valid?("a0")     # => false
-    #   Sashite::Cell.valid?("a1\n")   # => false
-    def self.valid?(string)
-      return false unless string.is_a?(String)
-      return false if string.empty?
-      return false if string.include?("\r") || string.include?("\n")
-
-      string.match?(REGEX)
-    end
-
-    # Get the number of dimensions in a coordinate
-    #
-    # @param string [String] the coordinate string
-    # @return [Integer] the number of dimensions
-    #
-    # @example
-    #   Sashite::Cell.dimensions("a1")     # => 2
-    #   Sashite::Cell.dimensions("a1A")    # => 3
-    #   Sashite::Cell.dimensions("foobar") # => 1
-    def self.dimensions(string)
-      return 0 unless valid?(string)
-
-      parse(string).length
-    end
-
-    # Parse a coordinate string into dimensional components
-    #
-    # @param string [String] the coordinate string to parse
-    # @return [Array<String>] array of dimensional components
-    #
-    # @example
-    #   Sashite::Cell.parse("a1A")      # => ["a", "1", "A"]
-    #   Sashite::Cell.parse("h8Hh8")    # => ["h", "8", "H", "h", "8"]
-    #   Sashite::Cell.parse("foobar")   # => ["foobar"] (if valid single dimension)
+    #   Sashite::Cell.parse("e4")  # => #<Sashite::Cell::Coordinate e4>
+    #   Sashite::Cell.parse("a0")  # => raises ArgumentError
     def self.parse(string)
-      return [] unless string.is_a?(::String)
-      return [] if string.empty?
-      return [] unless valid?(string)
-
-      parse_recursive(string, 1)
+      Coordinate.new(*Parser.parse_to_indices(string))
     end
 
-    # Convert a CELL coordinate to an array of 0-indexed integers
+    # Formats indices into a CELL string.
     #
-    # @param string [String] the CELL coordinate
-    # @return [Array<Integer>] array of 0-indexed positions
+    # @param indices [Array<Integer>] 0-indexed coordinate values (0-255)
+    # @return [String] CELL coordinate string
+    # @raise [ArgumentError] if indices are invalid
     #
     # @example
-    #   Sashite::Cell.to_indices("a1")   # => [0, 0]
-    #   Sashite::Cell.to_indices("e4")   # => [4, 3]
-    #   Sashite::Cell.to_indices("a1A")  # => [0, 0, 0]
-    def self.to_indices(string)
-      return [] unless valid?(string)
-
-      parse(string).map.with_index do |component, index|
-        dimension_type = dimension_type(index + 1)
-        component_to_index(component, dimension_type)
-      end
+    #   Sashite::Cell.format(4, 3)    # => "e4"
+    #   Sashite::Cell.format(0, 0, 0) # => "a1A"
+    def self.format(*indices)
+      Coordinate.new(*indices).to_s
     end
 
-    # Convert an array of 0-indexed integers to a CELL coordinate
+    # Validates a CELL string.
     #
-    # @param indices [Array<Integer>] splat arguments of 0-indexed positions
-    # @return [String] the CELL coordinate
+    # @param string [String] CELL coordinate string
+    # @return [nil]
+    # @raise [ArgumentError] if the string is not a valid CELL coordinate
     #
     # @example
-    #   Sashite::Cell.from_indices(0, 0)     # => "a1"
-    #   Sashite::Cell.from_indices(4, 3)     # => "e4"
-    #   Sashite::Cell.from_indices(0, 0, 0)  # => "a1A"
-    def self.from_indices(*indices)
-      return "" if indices.empty?
-
-      result = indices.map.with_index do |index, dimension|
-        dimension_type = dimension_type(dimension + 1)
-        index_to_component(index, dimension_type)
-      end.join
-
-      # Verify the result is valid according to CELL specification
-      valid?(result) ? result : ""
+    #   Sashite::Cell.validate("e4")  # => nil
+    #   Sashite::Cell.validate("a0")  # => raises ArgumentError
+    def self.validate(string)
+      Parser.parse_to_indices(string)
+      nil
     end
 
-    # Get the validation regular expression
+    # Reports whether string is a valid CELL coordinate.
     #
-    # Note: This regex alone does not guarantee full compliance. The valid?
-    # method additionally rejects strings containing line breaks, as required
-    # by the specification's anchoring requirements.
+    # @param string [String] CELL coordinate string
+    # @return [Boolean] true if valid, false otherwise
     #
-    # @return [Regexp] the CELL validation regex from specification v1.0.0
-    def self.regex
-      REGEX
+    # @example
+    #   Sashite::Cell.valid?("e4")  # => true
+    #   Sashite::Cell.valid?("a0")  # => false
+    def self.valid?(string)
+      validate(string)
+      true
+    rescue ::ArgumentError
+      false
     end
-
-    # Recursively parse a coordinate string into components
-    # following the strict CELL specification cyclical pattern
-    #
-    # @param string [String] the remaining string to parse
-    # @param dimension [Integer] the current dimension (1-indexed)
-    # @return [Array<String>] array of dimensional components
-    def self.parse_recursive(string, dimension)
-      return [] if string.empty?
-
-      expected_type = dimension_type(dimension)
-      component = extract_component(string, expected_type)
-
-      return [] if component.nil?
-
-      # Extract component and recursively parse the rest
-      remaining = string[component.length..]
-      [component] + parse_recursive(remaining, dimension + 1)
-    end
-
-    # Determine the character set type for a given dimension
-    # Following CELL specification cyclical system: dimension n % 3 determines character set
-    #
-    # @param dimension [Integer] the dimension number (1-indexed)
-    # @return [Symbol] :lowercase, :numeric, or :uppercase
-    def self.dimension_type(dimension)
-      case dimension % 3
-      when 1 then :lowercase  # n % 3 = 1: Latin lowercase letters
-      when 2 then :numeric    # n % 3 = 2: Arabic numerals
-      when 0 then :uppercase  # n % 3 = 0: Latin uppercase letters
-      end
-    end
-
-    # Extract the next component from a string based on expected type
-    # Strictly follows CELL specification patterns
-    #
-    # @param string [String] the string to extract from
-    # @param type [Symbol] the expected component type
-    # @return [String, nil] the extracted component or nil if invalid
-    def self.extract_component(string, type)
-      case type
-      when :lowercase
-        # Latin lowercase letters: [a-z]+
-        match = string.match(/^([a-z]+)/)
-        match ? match[1] : nil
-      when :numeric
-        # Arabic numerals: [1-9][0-9]* (CELL specification requires positive integers only)
-        match = string.match(/^([1-9][0-9]*)/)
-        match ? match[1] : nil
-      when :uppercase
-        # Latin uppercase letters: [A-Z]+
-        match = string.match(/^([A-Z]+)/)
-        match ? match[1] : nil
-      end
-    end
-
-    # Convert a component to its 0-indexed position
-    #
-    # @param component [String] the component
-    # @param type [Symbol] the component type
-    # @return [Integer] the 0-indexed position
-    def self.component_to_index(component, type)
-      case type
-      when :lowercase
-        letters_to_index(component)
-      when :numeric
-        component.to_i - 1
-      when :uppercase
-        letters_to_index(component.downcase)
-      end
-    end
-
-    # Convert a 0-indexed position to a component
-    #
-    # @param index [Integer] the 0-indexed position
-    # @param type [Symbol] the component type
-    # @return [String] the component
-    def self.index_to_component(index, type)
-      case type
-      when :lowercase
-        index_to_letters(index)
-      when :numeric
-        (index + 1).to_s
-      when :uppercase
-        index_to_letters(index).upcase
-      end
-    end
-
-    # Convert letter sequence to 0-indexed position
-    # Extended alphabet per CELL specification: a=0, b=1, ..., z=25, aa=26, ab=27, ..., zz=701, aaa=702, etc.
-    #
-    # @param letters [String] the letter sequence
-    # @return [Integer] the 0-indexed position
-    def self.letters_to_index(letters)
-      length = letters.length
-      index = 0
-
-      # Add positions from shorter sequences
-      (1...length).each do |len|
-        index += 26**len
-      end
-
-      # Add position within current length
-      letters.each_char.with_index do |char, pos|
-        index += (char.ord - 97) * (26**(length - pos - 1))
-      end
-
-      index
-    end
-
-    # Convert 0-indexed position to letter sequence
-    # Extended alphabet per CELL specification: 0=a, 1=b, ..., 25=z, 26=aa, 27=ab, ..., 701=zz, 702=aaa, etc.
-    #
-    # @param index [Integer] the 0-indexed position
-    # @return [String] the letter sequence
-    def self.index_to_letters(index)
-      # Find the length of the result
-      length = 1
-      base = 0
-
-      loop do
-        range_size = 26**length
-        break if index < base + range_size
-
-        base += range_size
-        length += 1
-      end
-
-      # Convert within the found length
-      adjusted_index = index - base
-      result = ""
-
-      length.times do |pos|
-        char_index = adjusted_index / (26**(length - pos - 1))
-        result += (char_index + 97).chr
-        adjusted_index %= (26**(length - pos - 1))
-      end
-
-      result
-    end
-
-    private_class_method :parse_recursive, :dimension_type, :extract_component
-    private_class_method :component_to_index, :index_to_component
-    private_class_method :letters_to_index, :index_to_letters
   end
 end

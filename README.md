@@ -1,17 +1,25 @@
-# Cell.rb
+# cell.rb
 
 [![Version](https://img.shields.io/github/v/tag/sashite/cell.rb?label=Version&logo=github)](https://github.com/sashite/cell.rb/tags)
 [![Yard documentation](https://img.shields.io/badge/Yard-documentation-blue.svg?logo=github)](https://rubydoc.info/github/sashite/cell.rb/main)
-![Ruby](https://github.com/sashite/cell.rb/actions/workflows/main.yml/badge.svg?branch=main)
-[![License](https://img.shields.io/github/license/sashite/cell.rb?label=License&logo=github)](https://github.com/sashite/cell.rb/raw/main/LICENSE)
+[![CI](https://github.com/sashite/cell.rb/actions/workflows/ruby.yml/badge.svg?branch=main)](https://github.com/sashite/cell.rb/actions)
+[![License](https://img.shields.io/github/license/sashite/cell.rb)](https://github.com/sashite/cell.rb/blob/main/LICENSE)
 
-> **CELL** (Coordinate Encoding for Layered Locations) support for the Ruby language.
+> **CELL** (Coordinate Encoding for Layered Locations) implementation for Ruby.
 
-## What is CELL?
+## Overview
 
-CELL (Coordinate Encoding for Layered Locations) is a standardized format for representing coordinates on multi-dimensional game boards using a cyclical ASCII character system. CELL supports unlimited dimensional coordinate systems through the systematic repetition of three distinct character sets.
+This library implements the [CELL Specification v1.0.0](https://sashite.dev/specs/cell/1.0.0/).
 
-This gem implements the [CELL Specification v1.0.0](https://sashite.dev/specs/cell/1.0.0/), providing a Ruby interface for working with multi-dimensional game coordinates through a clean, functional API.
+### Implementation Constraints
+
+| Constraint | Value | Rationale |
+|------------|-------|-----------|
+| Max dimensions | 3 | Sufficient for 1D, 2D, 3D boards |
+| Max index value | 255 | Fits in 8-bit integer, covers 256×256×256 boards |
+| Max string length | 7 | `"iv256IV"` (max for all dimensions at 255) |
+
+These constraints enable bounded memory usage and safe parsing.
 
 ## Installation
 
@@ -26,284 +34,168 @@ Or install manually:
 gem install sashite-cell
 ```
 
-## CELL Format
+## Usage
 
-CELL uses a cyclical three-character-set system that repeats indefinitely based on dimensional position:
+### Parsing (String → Coordinate)
 
-**Dimension (n % 3 = 1)**: Latin Lowercase Letters
-- `a`, `b`, `c`, ..., `z`, `aa`, `ab`, ..., `zz`, `aaa`, ...
-
-**Dimension (n % 3 = 2)**: Arabic Numerals
-- `1`, `2`, `3`, ..., `25`, `26`, ...
-
-**Dimension (n % 3 = 0)**: Latin Uppercase Letters
-- `A`, `B`, `C`, ..., `Z`, `AA`, `AB`, ..., `ZZ`, `AAA`, ...
-
-## Basic Usage
-
-### Validation
-
-The primary functionality is validating CELL coordinates:
+Convert a CELL string into a `Coordinate` object.
 
 ```ruby
 require "sashite/cell"
 
-# Check if a string represents a valid CELL coordinate
-Sashite::Cell.valid?("a1")     # => true (2D coordinate)
-Sashite::Cell.valid?("a1A")    # => true (3D coordinate)
-Sashite::Cell.valid?("e4")     # => true (2D coordinate)
-Sashite::Cell.valid?("h8Hh8")  # => true (5D coordinate)
-Sashite::Cell.valid?("*")      # => false (not a CELL coordinate)
-Sashite::Cell.valid?("a0")     # => false (invalid numeral)
-Sashite::Cell.valid?("")       # => false (empty string)
+# Standard parsing (returns Coordinate or raises)
+coord = Sashite::Cell.parse("e4")
+coord.indices    # => [4, 3]
+coord.dimensions # => 2
 
-# Alias for convenience
-Cell = Sashite::Cell
-Cell.valid?("a1") # => true
+# 3D coordinate
+coord = Sashite::Cell.parse("a1A")
+coord.indices # => [0, 0, 0]
+
+# Invalid input raises ArgumentError
+Sashite::Cell.parse("a0") # => raises ArgumentError
 ```
 
-### Dimensional Analysis
+### Formatting (Coordinate → String)
+
+Convert a `Coordinate` back to a CELL string.
 
 ```ruby
-# Get the number of dimensions in a coordinate
-Sashite::Cell.dimensions("a1")     # => 2
-Sashite::Cell.dimensions("a1A")    # => 3
-Sashite::Cell.dimensions("h8Hh8")  # => 5
-Sashite::Cell.dimensions("foobar") # => 1
+# From Coordinate object
+coord = Sashite::Cell::Coordinate.new(4, 3)
+coord.to_s # => "e4"
 
-# Parse coordinate into dimensional components
-Sashite::Cell.parse("a1A")
-# => ["a", "1", "A"]
-
-Sashite::Cell.parse("h8Hh8")
-# => ["h", "8", "H", "h", "8"]
-
-Sashite::Cell.parse("foobar")
-# => ["foobar"]
+# Direct formatting (convenience)
+Sashite::Cell.format(2, 2, 2) # => "c3C"
 ```
 
-### Coordinate Conversion
+### Validation
 
 ```ruby
-# Convert coordinates to arrays of integers (0-indexed)
-Sashite::Cell.to_indices("a1")
-# => [0, 0]
+# Boolean check
+Sashite::Cell.valid?("e4") # => true
 
-Sashite::Cell.to_indices("e4")
-# => [4, 3]
-
-Sashite::Cell.to_indices("a1A")
-# => [0, 0, 0]
-
-# Convert arrays of integers back to CELL coordinates
-Sashite::Cell.from_indices(0, 0)
-# => "a1"
-
-Sashite::Cell.from_indices(4, 3)
-# => "e4"
-
-Sashite::Cell.from_indices(0, 0, 0)
-# => "a1A"
+# Detailed error
+Sashite::Cell.validate("a0") # => raises ArgumentError, "leading zero"
 ```
 
-## Usage Examples
-
-### Chess Board (8x8)
+### Accessing Coordinate Data
 
 ```ruby
-# Standard chess notation mapping
-chess_squares = %w[a1 b1 c1 d1 e1 f1 g1 h1
-                   a2 b2 c2 d2 e2 f2 g2 h2
-                   a3 b3 c3 d3 e3 f3 g3 h3
-                   a4 b4 c4 d4 e4 f4 g4 h4
-                   a5 b5 c5 d5 e5 f5 g5 h5
-                   a6 b6 c6 d6 e6 f6 g6 h6
-                   a7 b7 c7 d7 e7 f7 g7 h7
-                   a8 b8 c8 d8 e8 f8 g8 h8]
+coord = Sashite::Cell.parse("e4")
 
-chess_squares.all? { |square| Sashite::Cell.valid?(square) }
-# => true
-```
+# Get dimensions count
+coord.dimensions # => 2
 
-### Shōgi Board (9x9)
+# Get indices as array
+coord.indices # => [4, 3]
 
-```ruby
-# CELL coordinates for shōgi positions
-shogi_positions = %w[a1 e5 i9] # Left corner, center, right corner
-shogi_positions.all? { |pos| Sashite::Cell.valid?(pos) }
-# => true
-
-# Convert to indices for board representation
-Sashite::Cell.to_indices("e5") # => [4, 4] (center of 9x9 board)
-```
-
-### 3D Tic-Tac-Toe (3x3x3)
-
-```ruby
-# Three-dimensional game coordinates
-positions_3d = %w[a1A b2B c3C a2B b3C c1A]
-positions_3d.all? { |pos| Sashite::Cell.valid?(pos) && Sashite::Cell.dimensions(pos) == 3 }
-# => true
-
-# Winning diagonal across all three dimensions
-diagonal_win = %w[a1A b2B c3C]
-diagonal_win.map { |pos| Sashite::Cell.to_indices(pos) }
-# => [[0,0,0], [1,1,1], [2,2,2]]
-```
-
-### Multi-dimensional Coordinates
-
-```ruby
-# Higher dimensional coordinates
-coord_4d = "a1Aa"
-coord_5d = "b2Bb2"
-
-Sashite::Cell.dimensions(coord_4d) # => 4
-Sashite::Cell.dimensions(coord_5d) # => 5
-
-# Parse into components
-Sashite::Cell.parse(coord_4d) # => ["a", "1", "A", "a"]
-Sashite::Cell.parse(coord_5d) # => ["b", "2", "B", "b", "2"]
+# Access individual index
+coord.indices[0] # => 4
+coord.indices[1] # => 3
 ```
 
 ## API Reference
 
-### Module Methods
+### Types
 
-#### Validation
-- `Sashite::Cell.valid?(string)` - Check if string represents a valid CELL coordinate
+```ruby
+# Coordinate represents a parsed CELL coordinate with up to 3 dimensions.
+class Sashite::Cell::Coordinate
+  # Creates a Coordinate from 1 to 3 indices.
+  # Raises ArgumentError if no indices provided or more than 3.
+  #
+  # @param indices [Array<Integer>] 0-indexed coordinate values (0-255)
+  # @return [Coordinate]
+  def initialize(*indices)
 
-#### Analysis
-- `Sashite::Cell.dimensions(string)` - Get number of dimensions
-- `Sashite::Cell.parse(string)` - Parse coordinate into dimensional components array
+  # Returns the number of dimensions (1, 2, or 3).
+  #
+  # @return [Integer]
+  def dimensions
 
-#### Conversion
-- `Sashite::Cell.to_indices(string)` - Convert CELL coordinate to 0-indexed integer array
-- `Sashite::Cell.from_indices(*indices)` - Convert splat indices to CELL coordinate
+  # Returns the coordinate indices as a frozen array.
+  #
+  # @return [Array<Integer>]
+  def indices
 
-#### Utilities
-- `Sashite::Cell.regex` - Get the validation regular expression
+  # Returns the CELL string representation.
+  #
+  # @return [String]
+  def to_s
+end
+```
 
 ### Constants
 
-- `Sashite::Cell::REGEX` - Regular expression for CELL validation per specification v1.0.0
-
-## Properties of CELL
-
-* **Multi-dimensional**: Supports unlimited dimensional coordinate systems
-* **Cyclical**: Uses systematic three-character-set repetition
-* **ASCII-based**: Pure ASCII characters for universal compatibility
-* **Unambiguous**: Each coordinate maps to exactly one location
-* **Scalable**: Extends naturally from 1D to unlimited dimensions
-* **Rule-agnostic**: Independent of specific game mechanics
-
-## Character Set Details
-
-### Latin Lowercase (Dimensions 1, 4, 7, ...)
-Single letters: `a` through `z` (positions 0-25)
-Double letters: `aa` through `zz` (positions 26-701)
-Triple letters: `aaa` through `zzz` (positions 702-18277)
-And so on...
-
-### Arabic Numerals (Dimensions 2, 5, 8, ...)
-Standard decimal notation: `1`, `2`, `3`, ... (1-indexed)
-No leading zeros, unlimited range
-
-### Latin Uppercase (Dimensions 3, 6, 9, ...)
-Single letters: `A` through `Z` (positions 0-25)
-Double letters: `AA` through `ZZ` (positions 26-701)
-Triple letters: `AAA` through `ZZZ` (positions 702-18277)
-And so on...
-
-## Integration with DROP
-
-CELL complements the DROP specification for complete location coverage:
-
 ```ruby
-# Combined location validation
-def valid_game_location?(location)
-  Sashite::Cell.valid?(location) || Sashite::Drop.reserve?(location)
-end
-
-valid_game_location?("a1")  # => true (board position)
-valid_game_location?("*")   # => true (reserve position)
-valid_game_location?("$")   # => false (invalid)
+Sashite::Cell::Coordinate::MAX_DIMENSIONS = 3
+Sashite::Cell::Coordinate::MAX_INDEX_VALUE = 255
+Sashite::Cell::Coordinate::MAX_STRING_LENGTH = 7
 ```
 
-## Examples in Different Games
-
-### Chess
+### Parsing
 
 ```ruby
-# Standard algebraic notation positions
-start_position = "e2"
-end_position = "e4"
-
-Sashite::Cell.valid?(start_position) # => true
-Sashite::Cell.valid?(end_position)   # => true
-
-# Convert to array indices for board representation
-Sashite::Cell.to_indices("e4") # => [4, 3]
+# Parses a CELL string into a Coordinate.
+# Raises ArgumentError if the string is not valid.
+#
+# @param string [String] CELL coordinate string
+# @return [Coordinate]
+# @raise [ArgumentError] if invalid
+def Sashite::Cell.parse(string)
 ```
 
-### Go (19x19)
+### Formatting
 
 ```ruby
-# Go board positions
-corner = "a1"       # Corner position
-edge = "j1"         # Edge position
-tengen = "j10"      # Center point (tengen) on 19x19 board
-
-[corner, edge, tengen].all? { |pos| Sashite::Cell.valid?(pos) }
-# => true
+# Formats indices into a CELL string.
+# Convenience method equivalent to Coordinate.new(*indices).to_s.
+#
+# @param indices [Array<Integer>] 0-indexed coordinate values
+# @return [String]
+def Sashite::Cell.format(*indices)
 ```
 
-### Abstract Strategy Games
+### Validation
 
 ```ruby
-# Multi-dimensional abstract games
-hypercube_4d = "a1Aa"
-tesseract_pos = "h8Hh8"
+# Validates a CELL string.
+# Raises ArgumentError with descriptive message if invalid.
+#
+# @param string [String] CELL coordinate string
+# @return [nil]
+# @raise [ArgumentError] if invalid
+def Sashite::Cell.validate(string)
 
-# Validate high-dimensional coordinates
-Sashite::Cell.valid?(hypercube_4d) # => true
-Sashite::Cell.dimensions(tesseract_pos) # => 5
-
-# Convert for mathematical operations
-Sashite::Cell.to_indices(hypercube_4d) # => [0, 0, 0, 0]
+# Reports whether string is a valid CELL coordinate.
+#
+# @param string [String] CELL coordinate string
+# @return [Boolean]
+def Sashite::Cell.valid?(string)
 ```
 
-## Specification Compliance
+### Errors
 
-This implementation strictly follows the [CELL Specification v1.0.0](https://sashite.dev/specs/cell/1.0.0/) and includes:
+All parsing and validation errors raise `ArgumentError` with descriptive messages:
 
-- **Exact regex**: Uses the official validation pattern from the specification
-- **Complete API**: All methods and behaviors defined in the specification
-- **Full test coverage**: Validates against all specification examples
-- **Round-trip safety**: Guaranteed coordinate ↔ indices conversion integrity
+| Message | Cause |
+|---------|-------|
+| `"empty input"` | String length is 0 |
+| `"input exceeds 7 characters"` | String too long |
+| `"must start with lowercase letter"` | Invalid first character |
+| `"unexpected character"` | Character violates the cyclic sequence |
+| `"leading zero"` | Numeric part starts with '0' |
+| `"exceeds 3 dimensions"` | More than 3 dimensions |
+| `"index exceeds 255"` | Decoded value out of range |
 
-### Specification Examples
+## Design Principles
 
-All examples from the CELL specification work correctly:
-
-```ruby
-# Basic Examples from spec
-Sashite::Cell.valid?("a")        # => true (1D)
-Sashite::Cell.valid?("a1")       # => true (2D)
-Sashite::Cell.valid?("a1A")      # => true (3D)
-Sashite::Cell.valid?("a1Aa1A")   # => true (6D)
-
-# Extended Alphabet Examples from spec
-Sashite::Cell.valid?("aa1AA")    # => true
-Sashite::Cell.valid?("z26Z")     # => true
-Sashite::Cell.valid?("abc123XYZ") # => true
-
-# Invalid Examples from spec
-Sashite::Cell.valid?("")         # => false
-Sashite::Cell.valid?("a0")       # => false
-Sashite::Cell.valid?("1a")       # => false
-Sashite::Cell.valid?("a1a")      # => false
-```
+- **Bounded values**: Index validation prevents overflow
+- **Object-oriented**: `Coordinate` class enables methods and encapsulation
+- **Ruby idioms**: `valid?` predicate, `to_s` conversion, `ArgumentError` for invalid input
+- **Immutable coordinates**: Frozen indices array prevents mutation
+- **No dependencies**: Pure Ruby standard library only
 
 ## Related Specifications
 
