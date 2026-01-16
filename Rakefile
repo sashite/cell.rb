@@ -5,7 +5,7 @@ require "rake/testtask"
 require "yard"
 
 Rake::TestTask.new do |t|
-  t.pattern = "test.rb"
+  t.pattern = "test/**/test_*.rb"
   t.verbose = true
   t.warning = true
 end

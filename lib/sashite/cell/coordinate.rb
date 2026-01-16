@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+require_relative "constants"
+require_relative "errors"
+require_relative "formatter"
+
 module Sashite
   module Cell
     # Represents a parsed CELL coordinate with up to 3 dimensions.
@@ -17,35 +21,34 @@ module Sashite
     #   coord = Sashite::Cell::Coordinate.new(0, 0, 0)
     #   coord.to_s # => "a1A"
     class Coordinate
-      # Maximum number of dimensions supported.
-      MAX_DIMENSIONS = 3
-
-      # Maximum value for any single index (0-255).
-      MAX_INDEX_VALUE = 255
-
-      # Maximum length of a CELL coordinate string.
-      MAX_STRING_LENGTH = 7
-
       # Returns the coordinate indices as a frozen array.
       #
       # @return [Array<Integer>] 0-indexed coordinate values
+      #
+      # @example
+      #   Sashite::Cell::Coordinate.new(4, 3).indices # => [4, 3]
       attr_reader :indices
 
       # Creates a Coordinate from 1 to 3 indices.
       #
       # @param indices [Array<Integer>] 0-indexed coordinate values (0-255 each)
-      # @raise [ArgumentError] if no indices provided, more than 3, or values out of range
+      # @raise [Sashite::Cell::Errors::Argument] if no indices provided, more than 3, or values out of range
       #
       # @example
       #   Sashite::Cell::Coordinate.new(4, 3)    # 2D coordinate
       #   Sashite::Cell::Coordinate.new(0, 0, 0) # 3D coordinate
       def initialize(*indices)
-        raise ::ArgumentError, "empty input" if indices.empty?
-        raise ::ArgumentError, "exceeds #{MAX_DIMENSIONS} dimensions" if indices.size > MAX_DIMENSIONS
+        if indices.empty?
+          raise Errors::Argument, Errors::Argument::Messages::NO_INDICES
+        end
+
+        if indices.size > Constants::MAX_DIMENSIONS
+          raise Errors::Argument, Errors::Argument::Messages::TOO_MANY_DIMENSIONS
+        end
 
         indices.each do |index|
-          unless index.is_a?(::Integer) && index >= 0 && index <= MAX_INDEX_VALUE
-            raise ::ArgumentError, "index exceeds #{MAX_INDEX_VALUE}"
+          unless index.is_a?(::Integer) && index >= 0 && index <= Constants::MAX_INDEX_VALUE
+            raise Errors::Argument, Errors::Argument::Messages::INDEX_OUT_OF_RANGE
           end
         end
 
@@ -69,13 +72,16 @@ module Sashite
       # @example
       #   Sashite::Cell::Coordinate.new(4, 3).to_s # => "e4"
       def to_s
-        Dumper.indices_to_string(@indices)
+        Formatter.indices_to_string(@indices)
       end
 
       # Checks equality with another Coordinate.
       #
       # @param other [Object] object to compare
       # @return [Boolean] true if equal, false otherwise
+      #
+      # @example
+      #   Sashite::Cell::Coordinate.new(4, 3) == Sashite::Cell::Coordinate.new(4, 3) # => true
       def ==(other)
         other.is_a?(Coordinate) && @indices == other.indices
       end
@@ -85,6 +91,10 @@ module Sashite
       # Returns hash code for use in Hash keys.
       #
       # @return [Integer] hash code
+      #
+      # @example
+      #   coord = Sashite::Cell::Coordinate.new(4, 3)
+      #   hash = { coord => "value" }
       def hash
         @indices.hash
       end
@@ -92,6 +102,9 @@ module Sashite
       # Returns a human-readable representation.
       #
       # @return [String] inspection string
+      #
+      # @example
+      #   Sashite::Cell::Coordinate.new(4, 3).inspect # => "#<Sashite::Cell::Coordinate e4>"
       def inspect
         "#<#{self.class} #{self}>"
       end

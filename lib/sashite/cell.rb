@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
+require_relative "cell/errors"
+require_relative "cell/formatter"
 require_relative "cell/coordinate"
-require_relative "cell/dumper"
 require_relative "cell/parser"
 
 module Sashite
@@ -28,11 +29,12 @@ module Sashite
     #
     # @param string [String] CELL coordinate string
     # @return [Coordinate] parsed coordinate
-    # @raise [ArgumentError] if the string is not a valid CELL coordinate
+    # @raise [Sashite::Cell::Errors::Argument] if the string is not a valid CELL coordinate
     #
     # @example
     #   Sashite::Cell.parse("e4")  # => #<Sashite::Cell::Coordinate e4>
-    #   Sashite::Cell.parse("a0")  # => raises ArgumentError
+    #   Sashite::Cell.parse("a1A") # => #<Sashite::Cell::Coordinate a1A>
+    #   Sashite::Cell.parse("a0")  # => raises Sashite::Cell::Errors::Argument
     def self.parse(string)
       Coordinate.new(*Parser.parse_to_indices(string))
     end
@@ -41,7 +43,7 @@ module Sashite
     #
     # @param indices [Array<Integer>] 0-indexed coordinate values (0-255)
     # @return [String] CELL coordinate string
-    # @raise [ArgumentError] if indices are invalid
+    # @raise [Sashite::Cell::Errors::Argument] if indices are invalid
     #
     # @example
     #   Sashite::Cell.format(4, 3)    # => "e4"
@@ -54,11 +56,11 @@ module Sashite
     #
     # @param string [String] CELL coordinate string
     # @return [nil]
-    # @raise [ArgumentError] if the string is not a valid CELL coordinate
+    # @raise [Sashite::Cell::Errors::Argument] if the string is not a valid CELL coordinate
     #
     # @example
     #   Sashite::Cell.validate("e4")  # => nil
-    #   Sashite::Cell.validate("a0")  # => raises ArgumentError
+    #   Sashite::Cell.validate("a0")  # => raises Sashite::Cell::Errors::Argument
     def self.validate(string)
       Parser.parse_to_indices(string)
       nil
@@ -75,7 +77,7 @@ module Sashite
     def self.valid?(string)
       validate(string)
       true
-    rescue ::ArgumentError
+    rescue Errors::Argument
       false
     end
   end

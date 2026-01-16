@@ -52,8 +52,8 @@ coord.dimensions # => 2
 coord = Sashite::Cell.parse("a1A")
 coord.indices # => [0, 0, 0]
 
-# Invalid input raises ArgumentError
-Sashite::Cell.parse("a0") # => raises ArgumentError
+# Invalid input raises Sashite::Cell::Errors::Argument
+Sashite::Cell.parse("a0") # => raises Sashite::Cell::Errors::Argument
 ```
 
 ### Formatting (Coordinate → String)
@@ -76,7 +76,7 @@ Sashite::Cell.format(2, 2, 2) # => "c3C"
 Sashite::Cell.valid?("e4") # => true
 
 # Detailed error
-Sashite::Cell.validate("a0") # => raises ArgumentError, "leading zero"
+Sashite::Cell.validate("a0") # => raises Sashite::Cell::Errors::Argument, "leading zero"
 ```
 
 ### Accessing Coordinate Data
@@ -103,7 +103,7 @@ coord.indices[1] # => 3
 # Coordinate represents a parsed CELL coordinate with up to 3 dimensions.
 class Sashite::Cell::Coordinate
   # Creates a Coordinate from 1 to 3 indices.
-  # Raises ArgumentError if no indices provided or more than 3.
+  # Raises Sashite::Cell::Errors::Argument if no indices provided or more than 3.
   #
   # @param indices [Array<Integer>] 0-indexed coordinate values (0-255)
   # @return [Coordinate]
@@ -129,20 +129,20 @@ end
 ### Constants
 
 ```ruby
-Sashite::Cell::Coordinate::MAX_DIMENSIONS = 3
-Sashite::Cell::Coordinate::MAX_INDEX_VALUE = 255
-Sashite::Cell::Coordinate::MAX_STRING_LENGTH = 7
+Sashite::Cell::Constants::MAX_DIMENSIONS   # => 3
+Sashite::Cell::Constants::MAX_INDEX_VALUE  # => 255
+Sashite::Cell::Constants::MAX_STRING_LENGTH # => 7
 ```
 
 ### Parsing
 
 ```ruby
 # Parses a CELL string into a Coordinate.
-# Raises ArgumentError if the string is not valid.
+# Raises Sashite::Cell::Errors::Argument if the string is not valid.
 #
 # @param string [String] CELL coordinate string
 # @return [Coordinate]
-# @raise [ArgumentError] if invalid
+# @raise [Sashite::Cell::Errors::Argument] if invalid
 def Sashite::Cell.parse(string)
 ```
 
@@ -161,11 +161,11 @@ def Sashite::Cell.format(*indices)
 
 ```ruby
 # Validates a CELL string.
-# Raises ArgumentError with descriptive message if invalid.
+# Raises Sashite::Cell::Errors::Argument with descriptive message if invalid.
 #
 # @param string [String] CELL coordinate string
 # @return [nil]
-# @raise [ArgumentError] if invalid
+# @raise [Sashite::Cell::Errors::Argument] if invalid
 def Sashite::Cell.validate(string)
 
 # Reports whether string is a valid CELL coordinate.
@@ -177,7 +177,7 @@ def Sashite::Cell.valid?(string)
 
 ### Errors
 
-All parsing and validation errors raise `ArgumentError` with descriptive messages:
+All parsing and validation errors raise `Sashite::Cell::Errors::Argument` (a subclass of `ArgumentError`) with descriptive messages:
 
 | Message | Cause |
 |---------|-------|
@@ -189,11 +189,27 @@ All parsing and validation errors raise `ArgumentError` with descriptive message
 | `"exceeds 3 dimensions"` | More than 3 dimensions |
 | `"index exceeds 255"` | Decoded value out of range |
 
+```ruby
+begin
+  Sashite::Cell.parse("a0")
+rescue Sashite::Cell::Errors::Argument => e
+  puts e.message # => "leading zero"
+end
+
+# Also catchable as ArgumentError for compatibility
+begin
+  Sashite::Cell.parse("a0")
+rescue ArgumentError => e
+  puts e.message # => "leading zero"
+end
+```
+
 ## Design Principles
 
 - **Bounded values**: Index validation prevents overflow
 - **Object-oriented**: `Coordinate` class enables methods and encapsulation
-- **Ruby idioms**: `valid?` predicate, `to_s` conversion, `ArgumentError` for invalid input
+- **Ruby idioms**: `valid?` predicate, `to_s` conversion
+- **Custom error class**: `Errors::Argument` inherits from `ArgumentError` for precise error handling
 - **Immutable coordinates**: Frozen indices array prevents mutation
 - **No dependencies**: Pure Ruby standard library only
 
